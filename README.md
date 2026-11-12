@@ -27,6 +27,23 @@ Planned use cases, each implemented as a module on top of a shared core:
 
 ## Development
 
+Requirements: Node.js 22.12 or newer (see `.nvmrc`).
+
+```bash
+npm install
+npm run dev      # development server at http://localhost:8090
+npm run check    # type check, lint, format check and tests
+npm run build    # production build in dist/
+```
+
+Source layout:
+
+- `src/core/` – geometry, toolpaths, G-code and project files; plain TypeScript
+  without UI dependencies
+- `src/modules/` – one module per use case
+- `src/ui/` – the React user interface
+- `tests/` – automated tests
+
 This project is developed with the help of an AI assistant (Claude Code by
 Anthropic). AI-assisted commits carry a `Co-Authored-By` trailer.
 
