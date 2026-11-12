@@ -1,0 +1,10 @@
+# Run with:  docker compose up -d --build
+# Then open: http://<this-host>:8090/
+services:
+  cnc-designer:
+    build: .
+    image: cnc-designer:latest
+    container_name: cnc-designer
+    ports:
+      - '8090:8090'
+    restart: unless-stopped

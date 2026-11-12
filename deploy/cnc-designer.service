@@ -1,0 +1,20 @@
+[Unit]
+Description=CNC-Designer - design tool for creative CNC use cases
+After=network.target
+
+[Service]
+Type=simple
+User=cnc-designer
+Group=cnc-designer
+# The app consists of static files only; Python's built-in web server is
+# sufficient for use inside a home network. Never use port 80 here.
+ExecStart=/usr/bin/python3 -m http.server 8090 --bind 0.0.0.0 --directory /opt/cnc-designer/www
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
