@@ -1,0 +1,14 @@
+# Local data (private notes, not part of the repository)
+.local_data/
+.env
+
+# Node
+node_modules/
+dist/
+coverage/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+*.log
