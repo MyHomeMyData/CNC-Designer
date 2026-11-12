@@ -53,3 +53,32 @@ export function bboxOfGeometry(geometry: Geometry): BBox2 | null {
   }
   return box;
 }
+
+/** Shortest distance from a point to the segment a–b. */
+export function distanceToSegment(p: Vec2, a: Vec2, b: Vec2): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared === 0) return distance(p, a);
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSquared));
+  return distance(p, { x: a.x + t * dx, y: a.y + t * dy });
+}
+
+/** Shortest distance from a point to anything in the geometry; `Infinity` if it is empty. */
+export function distanceToGeometry(p: Vec2, geometry: Geometry): number {
+  let best = Infinity;
+  for (const point of geometry.points) best = Math.min(best, distance(p, point));
+  for (const { points, closed } of geometry.polylines) {
+    if (points.length === 1) best = Math.min(best, distance(p, points[0] as Vec2));
+    for (let i = 1; i < points.length; i++) {
+      best = Math.min(best, distanceToSegment(p, points[i - 1] as Vec2, points[i] as Vec2));
+    }
+    if (closed && points.length > 2) {
+      best = Math.min(
+        best,
+        distanceToSegment(p, points[points.length - 1] as Vec2, points[0] as Vec2),
+      );
+    }
+  }
+  return best;
+}
