@@ -8,11 +8,14 @@ const MAX_CIRCLE_SEGMENTS = 720;
 
 /**
  * Number of straight segments needed so that a circle of the given radius
- * deviates from its polygon by at most `tolerance`.
+ * deviates from its polygon by at most `tolerance`. Always a multiple of four.
  */
 export function circleSegments(radius: number, tolerance: number = DEFAULT_TOLERANCE): number {
   if (!(radius > 0) || !(tolerance > 0) || tolerance >= radius) return MIN_CIRCLE_SEGMENTS;
-  const count = Math.ceil(Math.PI / Math.acos(1 - tolerance / radius));
+  const needed = Math.ceil(Math.PI / Math.acos(1 - tolerance / radius));
+  // A multiple of four puts points exactly on the extremes in X and Y, so
+  // the polygon is as wide and as high as the circle.
+  const count = Math.ceil(needed / 4) * 4;
   return Math.min(MAX_CIRCLE_SEGMENTS, Math.max(MIN_CIRCLE_SEGMENTS, count));
 }
 

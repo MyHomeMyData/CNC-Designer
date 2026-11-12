@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  bboxOfPoints,
   circlePolyline,
   circleSegments,
   distanceToGeometry,
@@ -28,6 +29,15 @@ describe('circlePolyline', () => {
       2 * Math.PI * radius,
       0,
     );
+  });
+
+  it('reaches the full diameter in X and Y', () => {
+    const box = bboxOfPoints(circlePolyline({ x: 0, y: 0 }, 100).points);
+    expect(box?.minX).toBeCloseTo(-100, 9);
+    expect(box?.maxX).toBeCloseTo(100, 9);
+    expect(box?.minY).toBeCloseTo(-100, 9);
+    expect(box?.maxY).toBeCloseTo(100, 9);
+    expect(circleSegments(100) % 4).toBe(0);
   });
 
   it('uses more segments for larger circles, within limits', () => {

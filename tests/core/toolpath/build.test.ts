@@ -146,9 +146,12 @@ describe('buildToolpath: follow', () => {
     ]);
   });
 
-  it('marks working moves with the tool diameter for the preview', () => {
+  it('marks cutting moves with the tool diameter for the preview', () => {
     const moves = allMoves(buildToolpath([job(paths(line), follow)]));
-    expect(moves.filter((m) => m.toolDiameter !== undefined).map((m) => m.kind)).toEqual(['work']);
+    expect(moves.filter((m) => m.toolDiameter !== undefined).map((m) => m.kind)).toEqual([
+      'plunge',
+      'work',
+    ]);
   });
 
   it('keeps the design order unless optimisation is switched on', () => {
@@ -202,6 +205,12 @@ describe('buildToolpath: drill', () => {
       'plunge 10,10,-5 150',
       'lift 10,10,5 R',
     ]);
+  });
+
+  it('marks only the cutting plunges with the tool diameter, not the re-entry', () => {
+    const single: Geometry = { polylines: [], points: [{ x: 10, y: 10 }] };
+    const moves = allMoves(buildToolpath([job(single, { ...drill, peckDepth: 3 })]));
+    expect(moves.filter((m) => m.toolDiameter !== undefined).map((m) => m.to.z)).toEqual([-3, -5]);
   });
 
   it('ignores paths, and a follow operation ignores points', () => {

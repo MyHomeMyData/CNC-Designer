@@ -68,10 +68,11 @@ class Builder {
     }
   }
 
-  zTo(kind: 'plunge' | 'lift', z: number, feed: number | null): void {
+  /** Z-only move. `toolDiameter` marks a plunge that cuts, for the preview. */
+  zTo(kind: 'plunge' | 'lift', z: number, feed: number | null, toolDiameter?: number): void {
     if (!this.xyKnown) throw new Error('Z move before first positioning');
     if (this.z !== null && Math.abs(this.z - z) <= EPSILON) return;
-    this.push(kind, { x: this.x, y: this.y, z }, feed);
+    this.push(kind, { x: this.x, y: this.y, z }, feed, toolDiameter);
   }
 
   workTo(target: Vec2, z: number, feed: number, toolDiameter: number): void {
@@ -101,7 +102,7 @@ function followPolyline(builder: Builder, polyline: Polyline, operation: Operati
   for (const level of levels) {
     // Between passes the tool stays in the material and only goes deeper:
     // a closed path ends where it started, an open one is followed back.
-    builder.zTo('plunge', level, operation.feedZ);
+    builder.zTo('plunge', level, operation.feedZ, operation.toolDiameter);
     const sequence = forward ? points.slice(1) : points.slice(0, -1).reverse();
     for (const point of sequence) {
       builder.workTo(point, level, operation.feedXY, operation.toolDiameter);
@@ -129,7 +130,7 @@ function drillPoint(builder: Builder, point: Vec2, operation: Operation): void {
       const reentry = Math.min(reached + PECK_CLEARANCE, operation.safeZ);
       builder.zTo('plunge', reentry, travel);
     }
-    builder.zTo('plunge', level, operation.feedZ);
+    builder.zTo('plunge', level, operation.feedZ, operation.toolDiameter);
     reached = level;
   }
   builder.zTo('lift', operation.safeZ, travel);

@@ -15,7 +15,7 @@ export interface Move {
   readonly to: Vec3;
   /** Feed rate in mm/min, or `null` for a rapid move at machine maximum. */
   readonly feed: number | null;
-  /** Width of the trace for the preview, in mm. Only set for `work` moves. */
+  /** Width of the trace for the preview, in mm. Set for moves that cut: `work` and cutting `plunge`. */
   readonly toolDiameter?: number;
 }
 
