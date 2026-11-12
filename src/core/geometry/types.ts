@@ -32,3 +32,10 @@ export interface BBox2 {
   readonly maxX: number;
   readonly maxY: number;
 }
+
+/** A position in program coordinates. Z = 0 is the workpiece surface, positive Z is above it. */
+export interface Vec3 {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+}
