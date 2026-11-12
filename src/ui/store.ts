@@ -50,6 +50,8 @@ export function createStore(initial: Project = createDefaultProject()) {
     /**
      * Apply a change to the project. Consecutive edits with the same
      * `mergeKey` (e.g. typing in one text field) form a single undo step.
+     * `now` is the time of the edit; callers that want a series of edits to
+     * merge regardless of its duration pass the same time for all of them.
      */
     edit(change: (project: Project) => Project, mergeKey?: string, now = Date.now()): void {
       const project = change(state.project);

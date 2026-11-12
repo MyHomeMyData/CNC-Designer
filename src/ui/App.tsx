@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Issue } from '../core/issues.ts';
 import { validateWorkArea, validateWorkpiece } from '../core/machine/index.ts';
 import {
@@ -8,6 +8,7 @@ import {
   parseProject,
   placedGeometry,
   serializeProject,
+  updateLayer,
 } from '../core/project/index.ts';
 import { APP_NAME, APP_VERSION } from '../core/version.ts';
 import { resolveLayerGeometry } from '../modules/registry.tsx';
@@ -95,6 +96,28 @@ export function App() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
+  /** Round to a tenth of a millimetre, so dragging gives tidy positions. */
+  const tidy = (value: number) => Math.round(value * 10) / 10;
+  const dragStart = useRef<{ dragId: number; x: number; y: number } | null>(null);
+
+  function dragLayer(layerId: string, dx: number, dy: number, dragId: number): void {
+    const layer = store.getState().project.layers.find((candidate) => candidate.id === layerId);
+    if (!layer) return;
+    if (dragStart.current?.dragId !== dragId) {
+      dragStart.current = { dragId, x: layer.placement.x, y: layer.placement.y };
+    }
+    const { x, y } = dragStart.current;
+    // All edits of one drag share a key and a time, so they form one undo step.
+    store.edit(
+      (current) =>
+        updateLayer(current, layerId, {
+          placement: { ...layer.placement, x: tidy(x + dx), y: tidy(y + dy) },
+        }),
+      `drag-${dragId}`,
+      dragId,
+    );
+  }
+
   function newProject(): void {
     if (!confirmDiscard()) return;
     store.load(createDefaultProject());
@@ -173,6 +196,7 @@ export function App() {
         selectedLayerId={selectedLayerId}
         toolpaths={toolpaths}
         onSelect={(id) => store.select(id)}
+        onDragLayer={dragLayer}
       />
 
       <aside className="sidebar right">

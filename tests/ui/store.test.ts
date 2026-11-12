@@ -62,6 +62,16 @@ describe('store', () => {
     expect(store.getState().project.name).toBe('Untitled');
   });
 
+  it('merges a series of any duration when all edits carry the same time', () => {
+    const store = createStore();
+    store.edit(rename('A'));
+    for (const name of ['B', 'C', 'D']) store.edit(rename(name), 'drag-1', 7000);
+    store.undo();
+    expect(store.getState().project.name).toBe('A');
+    store.redo();
+    expect(store.getState().project.name).toBe('D');
+  });
+
   it('does not merge after a pause or with another key', () => {
     const store = createStore();
     store.edit(rename('A'), 'name', 1000);

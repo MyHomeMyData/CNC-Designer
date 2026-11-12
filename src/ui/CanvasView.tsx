@@ -13,6 +13,11 @@ interface CanvasViewProps {
   readonly selectedLayerId: string | null;
   readonly toolpaths: readonly Toolpath[];
   readonly onSelect: (layerId: string | null) => void;
+  /**
+   * Called while a layer is dragged, with the total distance in mm since the
+   * drag began. `dragId` is the same for all calls of one drag.
+   */
+  readonly onDragLayer: (layerId: string, dx: number, dy: number, dragId: number) => void;
 }
 
 /** A click selects the layer whose geometry is within this many pixels. */
@@ -44,7 +49,7 @@ function pointerPixel(event: { clientX: number; clientY: number }, element: Elem
 }
 
 export function CanvasView(props: CanvasViewProps) {
-  const { workArea, workpiece, layers, selectedLayerId, toolpaths, onSelect } = props;
+  const { workArea, workpiece, layers, selectedLayerId, toolpaths, onSelect, onDragLayer } = props;
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -53,7 +58,15 @@ export function CanvasView(props: CanvasViewProps) {
   const [showResult, setShowResult] = useState(true);
   const [showTravel, setShowTravel] = useState(true);
   const [pointer, setPointer] = useState<Vec2 | null>(null);
-  const drag = useRef<{ start: Vec2; last: Vec2; moved: boolean } | null>(null);
+  const [overLayer, setOverLayer] = useState(false);
+  const drag = useRef<{
+    start: Vec2;
+    last: Vec2;
+    moved: boolean;
+    /** Layer that is being moved; `null` when the view is panned instead. */
+    layerId: string | null;
+    id: number;
+  } | null>(null);
 
   const fitted = useMemo(
     () =>
@@ -141,7 +154,10 @@ export function CanvasView(props: CanvasViewProps) {
 
   function onPointerDown(event: PointerEvent<HTMLCanvasElement>): void {
     const pixel = pointerPixel(event, event.currentTarget);
-    drag.current = { start: pixel, last: pixel, moved: false };
+    // Dragging a layer moves it; dragging empty space moves the view.
+    const layerId = layerAt(pixel);
+    if (layerId) onSelect(layerId);
+    drag.current = { start: pixel, last: pixel, moved: false, layerId, id: Date.now() };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
@@ -149,11 +165,21 @@ export function CanvasView(props: CanvasViewProps) {
     const pixel = pointerPixel(event, event.currentTarget);
     setPointer(toWorld(view, pixel));
     const current = drag.current;
-    if (!current) return;
+    if (!current) {
+      setOverLayer(layerAt(pixel) !== null);
+      return;
+    }
     if (Math.hypot(pixel.x - current.start.x, pixel.y - current.start.y) > CLICK_PIXELS) {
       current.moved = true;
     }
-    if (current.moved) {
+    if (current.moved && current.layerId) {
+      onDragLayer(
+        current.layerId,
+        (pixel.x - current.start.x) / view.scale,
+        (current.start.y - pixel.y) / view.scale,
+        current.id,
+      );
+    } else if (current.moved) {
       const dx = pixel.x - current.last.x;
       const dy = pixel.y - current.last.y;
       setUserView((previous) => pan(previous ?? fitted, dx, dy));
@@ -161,10 +187,11 @@ export function CanvasView(props: CanvasViewProps) {
     current.last = pixel;
   }
 
-  function onPointerUp(event: PointerEvent<HTMLCanvasElement>): void {
+  function onPointerUp(): void {
     const current = drag.current;
     drag.current = null;
-    if (current && !current.moved) onSelect(layerAt(pointerPixel(event, event.currentTarget)));
+    // A click on empty space clears the selection; a layer was selected on pointer down.
+    if (current && !current.moved && !current.layerId) onSelect(null);
   }
 
   return (
@@ -172,7 +199,7 @@ export function CanvasView(props: CanvasViewProps) {
       <div className="canvas-wrapper" ref={wrapperRef}>
         <canvas
           ref={canvasRef}
-          style={{ width: size.width, height: size.height }}
+          style={{ width: size.width, height: size.height, cursor: overLayer ? 'move' : 'grab' }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
