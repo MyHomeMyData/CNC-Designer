@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Basic shapes: ellipse, with handles at the ends of its axes
 - Snap grid for moving layers and pulling edges, 10 mm by default,
   adjustable in whole millimetres; Alt switches it off for one drag
 - Rectangle: handles in the middle of the edges; pulling one moves that

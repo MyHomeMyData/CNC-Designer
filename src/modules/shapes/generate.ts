@@ -21,6 +21,7 @@ const schema = z.discriminatedUnion('shape', [
     cornerRadius: z.number().finite().min(0).default(0),
   }),
   z.strictObject({ shape: z.literal('circle'), diameter: positive }),
+  z.strictObject({ shape: z.literal('ellipse'), width: positive, height: positive }),
   z.strictObject({
     shape: z.literal('grid'),
     columns: count,
@@ -36,6 +37,7 @@ const schema = z.discriminatedUnion('shape', [
  * - `rectangle`: lower left corner at the layer origin (with rounded
  *   corners: the corner of the box around it)
  * - `circle`: centre at the layer origin
+ * - `ellipse`: centre at the layer origin, axes along X and Y
  * - `grid`: points for drilling, first point at the layer origin
  */
 export type ShapesParams = z.infer<typeof schema>;
@@ -45,6 +47,7 @@ export const SHAPE_DEFAULTS: { readonly [K in ShapeKind]: Extract<ShapesParams, 
   line: { shape: 'line', dx: 100, dy: 0 },
   rectangle: { shape: 'rectangle', width: 100, height: 60, cornerRadius: 0 },
   circle: { shape: 'circle', diameter: 80 },
+  ellipse: { shape: 'ellipse', width: 120, height: 80 },
   grid: { shape: 'grid', columns: 5, rows: 3, spacingX: 20, spacingY: 20 },
 };
 
@@ -112,21 +115,37 @@ function samePoint(a: Vec2, b: Vec2): boolean {
 const MIN_SIDE = 0.1;
 const tidy = (value: number) => Math.round(value * 10) / 10;
 
-/** A rectangle has one handle in the middle of each edge. */
+/**
+ * Where the layer origin lies within the box around a shape that has a
+ * width and a height, as a fraction of each: 0 for the lower left corner
+ * (rectangle), 0.5 for the centre (ellipse). `null` for other shapes.
+ */
+function originInBox(params: ShapesParams): number | null {
+  return params.shape === 'rectangle' ? 0 : params.shape === 'ellipse' ? 0.5 : null;
+}
+
+/**
+ * A rectangle has one handle in the middle of each edge, an ellipse one at
+ * each end of its axes.
+ */
 export function shapeHandles(params: ShapesParams): readonly ModuleHandle[] {
-  if (params.shape !== 'rectangle') return [];
+  const origin = originInBox(params);
+  if (origin === null || (params.shape !== 'rectangle' && params.shape !== 'ellipse')) return [];
   const { width, height } = params;
+  // Subtracting from 0 avoids a negative zero.
+  const left = 0 - origin * width;
+  const bottom = 0 - origin * height;
   return [
-    { id: 'left', at: { x: 0, y: height / 2 }, axis: { x: 1, y: 0 } },
-    { id: 'right', at: { x: width, y: height / 2 }, axis: { x: 1, y: 0 } },
-    { id: 'bottom', at: { x: width / 2, y: 0 }, axis: { x: 0, y: 1 } },
-    { id: 'top', at: { x: width / 2, y: height }, axis: { x: 0, y: 1 } },
+    { id: 'left', at: { x: left, y: bottom + height / 2 }, axis: { x: 1, y: 0 } },
+    { id: 'right', at: { x: left + width, y: bottom + height / 2 }, axis: { x: 1, y: 0 } },
+    { id: 'bottom', at: { x: left + width / 2, y: bottom }, axis: { x: 0, y: 1 } },
+    { id: 'top', at: { x: left + width / 2, y: bottom + height }, axis: { x: 0, y: 1 } },
   ];
 }
 
 /**
- * Pull an edge of a rectangle to `to`: the edge follows, the opposite edge
- * stays, so the two edges of the other direction change their length.
+ * Pull one side of a rectangle or an ellipse to `to`: that side follows and
+ * the opposite one stays, so the width or the height changes.
  * With `snapLength`, that length becomes a multiple of it.
  */
 export function dragShapeHandle(
@@ -135,24 +154,42 @@ export function dragShapeHandle(
   to: Vec2,
   snapLength?: number,
 ): HandleDrag<ShapesParams> | null {
-  if (params.shape !== 'rectangle') return null;
+  const origin = originInBox(params);
+  if (origin === null || (params.shape !== 'rectangle' && params.shape !== 'ellipse')) return null;
   const { width, height } = params;
   const side = (length: number) =>
     snapLength === undefined
       ? Math.max(MIN_SIDE, tidy(length))
       : Math.max(1, Math.round(length / snapLength)) * snapLength;
+  // The origin moves by its share of the change, towards the pulled side.
   switch (handleId) {
-    case 'right':
-      return { params: { ...params, width: side(to.x) }, shift: { x: 0, y: 0 } };
-    case 'top':
-      return { params: { ...params, height: side(to.y) }, shift: { x: 0, y: 0 } };
+    case 'right': {
+      const next = side(to.x + origin * width);
+      return {
+        params: { ...params, width: next },
+        shift: { x: origin * (next - width) + 0, y: 0 },
+      };
+    }
+    case 'top': {
+      const next = side(to.y + origin * height);
+      return {
+        params: { ...params, height: next },
+        shift: { x: 0, y: origin * (next - height) + 0 },
+      };
+    }
     case 'left': {
-      const next = side(width - to.x);
-      return { params: { ...params, width: next }, shift: { x: width - next, y: 0 } };
+      const next = side((1 - origin) * width - to.x);
+      return {
+        params: { ...params, width: next },
+        shift: { x: (1 - origin) * (width - next) + 0, y: 0 },
+      };
     }
     case 'bottom': {
-      const next = side(height - to.y);
-      return { params: { ...params, height: next }, shift: { x: 0, y: height - next } };
+      const next = side((1 - origin) * height - to.y);
+      return {
+        params: { ...params, height: next },
+        shift: { x: 0, y: (1 - origin) * (height - next) + 0 },
+      };
     }
     default:
       return null;
@@ -178,6 +215,22 @@ export function generateShapes(params: ShapesParams): Geometry {
       return { polylines: [rectanglePolyline(params)], points: [] };
     case 'circle':
       return { polylines: [circlePolyline({ x: 0, y: 0 }, params.diameter / 2)], points: [] };
+    case 'ellipse': {
+      // A circle of the larger radius, squeezed along the other axis: the
+      // deviation from the true curve can only get smaller by that.
+      const circle = circlePolyline({ x: 0, y: 0 }, Math.max(params.width, params.height) / 2);
+      const count = circle.points.length;
+      const points = circle.points.map((_, index) => {
+        // Exact values on the axes, so the ellipse is as wide and high as asked for.
+        const quarter = (index * 4) / count;
+        const angle = (quarter * Math.PI) / 2;
+        const onAxis = Number.isInteger(quarter);
+        const cos = onAxis ? Math.round(Math.cos(angle)) : Math.cos(angle);
+        const sin = onAxis ? Math.round(Math.sin(angle)) : Math.sin(angle);
+        return { x: (params.width / 2) * cos + 0, y: (params.height / 2) * sin + 0 };
+      });
+      return { polylines: [{ points, closed: true }], points: [] };
+    }
     case 'grid': {
       const points: Vec2[] = [];
       for (let row = 0; row < params.rows; row++) {

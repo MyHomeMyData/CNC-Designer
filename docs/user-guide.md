@@ -40,11 +40,11 @@ setting the zero point.
 
 A design consists of layers. Choose a kind of layer and press _Add layer_:
 
-| Kind        | What it is                                                  |
-| ----------- | ----------------------------------------------------------- |
-| Basic shape | A line, rectangle, circle, or a grid of points for drilling |
-| SVG import  | Paths from an SVG file                                      |
-| Text        | Letters as outlines                                         |
+| Kind        | What it is                                              |
+| ----------- | ------------------------------------------------------- |
+| Basic shape | A line, rectangle, circle, ellipse, or a grid of points |
+| SVG import  | Paths from an SVG file                                  |
+| Text        | Letters as outlines                                     |
 
 Layers are worked from top to bottom. The arrows change the order, the
 checkbox hides a layer (hidden layers are not exported), ✕ deletes it.
@@ -74,6 +74,9 @@ A **rectangle** has a square handle in the middle of each edge. Pull one to
 move that edge: the opposite edge stays where it is, and _Width_ or _Height_
 changes. Unlike the corner handles, this changes the rectangle itself and
 not its scale.
+
+An **ellipse** is given by its width and height, with its centre at the
+layer position. It has the same four handles, at the ends of its axes.
 
 _Corner radius_ rounds all four corners with the same radius; 0 gives sharp
 corners. The radius is limited to half of the shorter side, and the size of

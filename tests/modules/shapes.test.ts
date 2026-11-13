@@ -110,7 +110,7 @@ describe('shapes', () => {
     ).toBeNull();
   });
 
-  it('offers a handle in the middle of each edge of a rectangle only', () => {
+  it('offers a handle in the middle of each edge of a rectangle, none on a circle', () => {
     const rectangle = { shape: 'rectangle', width: 100, height: 60, cornerRadius: 0 } as const;
     expect(shapeHandles(rectangle).map(({ id, at }) => [id, at.x, at.y])).toEqual([
       ['left', 0, 30],
@@ -154,6 +154,64 @@ describe('shapes', () => {
     expect(box?.minX).toBeCloseTo(-40, 1);
     expect(box?.maxX).toBeCloseTo(40, 1);
     expect(box?.maxY).toBeCloseTo(40, 1);
+  });
+
+  it('draws an ellipse around the origin, exactly as wide and high as asked for', () => {
+    const geometry = generateShapes({ shape: 'ellipse', width: 120, height: 50 });
+    const points = geometry.polylines[0]?.points ?? [];
+    expect(geometry.polylines).toHaveLength(1);
+    expect(geometry.polylines[0]?.closed).toBe(true);
+    expect(bboxOfGeometry(geometry)).toEqual({ minX: -60, minY: -25, maxX: 60, maxY: 25 });
+    expect(points).toContainEqual({ x: 60, y: 0 });
+    expect(points).toContainEqual({ x: 0, y: 25 });
+    expect(points).toContainEqual({ x: -60, y: 0 });
+    expect(points).toContainEqual({ x: 0, y: -25 });
+    // every point fulfils the equation of the ellipse
+    for (const p of points) expect((p.x / 60) ** 2 + (p.y / 25) ** 2).toBeCloseTo(1, 9);
+    // the straight pieces stay within the default tolerance of the curve
+    points.forEach((p, i) => {
+      const next = points[(i + 1) % points.length] ?? p;
+      const middle = { x: (p.x + next.x) / 2, y: (p.y + next.y) / 2 };
+      const radial = Math.hypot(middle.x / 60, middle.y / 25);
+      expect(Math.hypot(middle.x, middle.y) * (1 / radial - 1)).toBeLessThan(0.02);
+    });
+    // a tall ellipse works the same way
+    const tall = bboxOfGeometry(generateShapes({ shape: 'ellipse', width: 10, height: 90 }));
+    expect(tall).toEqual({ minX: -5, minY: -45, maxX: 5, maxY: 45 });
+    expect(parseShapesParams({ shape: 'ellipse', width: 10, height: 0 })).toBeNull();
+  });
+
+  it('pulls one end of an axis of an ellipse while the opposite end stays', () => {
+    const ellipse = { shape: 'ellipse', width: 120, height: 50 } as const;
+    expect(shapeHandles(ellipse).map(({ id, at }) => [id, at.x, at.y])).toEqual([
+      ['left', -60, 0],
+      ['right', 60, 0],
+      ['bottom', 0, -25],
+      ['top', 0, 25],
+    ]);
+    // right end from 60 to 100: 40 wider, the centre moves by half of that
+    expect(dragShapeHandle(ellipse, 'right', { x: 100, y: 7 })).toEqual({
+      params: { ...ellipse, width: 160 },
+      shift: { x: 20, y: 0 },
+    });
+    // lower end from -25 to -5: 20 lower, the centre moves up by 10
+    expect(dragShapeHandle(ellipse, 'bottom', { x: 0, y: -5 })).toEqual({
+      params: { ...ellipse, height: 30 },
+      shift: { x: 0, y: 10 },
+    });
+    expect(dragShapeHandle(ellipse, 'left', { x: -80, y: 0 })).toEqual({
+      params: { ...ellipse, width: 140 },
+      shift: { x: -10, y: 0 },
+    });
+    expect(dragShapeHandle(ellipse, 'top', { x: 0, y: 45 })).toEqual({
+      params: { ...ellipse, height: 70 },
+      shift: { x: 0, y: 10 },
+    });
+    // with a snap length the axis becomes a multiple of it
+    expect(dragShapeHandle(ellipse, 'right', { x: 73, y: 0 }, 25)?.params).toEqual({
+      ...ellipse,
+      width: 125,
+    });
   });
 
   it('creates a grid of points, row by row', () => {

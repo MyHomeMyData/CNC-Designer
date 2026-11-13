@@ -12,6 +12,7 @@ const SHAPE_OPTIONS: readonly { value: ShapeKind; label: string }[] = [
   { value: 'line', label: 'Line' },
   { value: 'rectangle', label: 'Rectangle' },
   { value: 'circle', label: 'Circle' },
+  { value: 'ellipse', label: 'Ellipse' },
   { value: 'grid', label: 'Point grid' },
 ];
 
@@ -80,6 +81,22 @@ export function ShapesPanel({ params, onChange }: PanelProps<ShapesParams>) {
           value={params.diameter}
           onCommit={(diameter) => change({ ...params, diameter })}
         />
+      )}
+      {params.shape === 'ellipse' && (
+        <>
+          <NumberField
+            label="Width"
+            unit="mm"
+            value={params.width}
+            onCommit={(width) => change({ ...params, width })}
+          />
+          <NumberField
+            label="Height"
+            unit="mm"
+            value={params.height}
+            onCommit={(height) => change({ ...params, height })}
+          />
+        </>
       )}
       {params.shape === 'grid' && (
         <>
