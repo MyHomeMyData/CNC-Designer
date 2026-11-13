@@ -173,7 +173,7 @@ button:disabled {
 .status-bar {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   padding: 4px 10px;
   border-top: 1px solid var(--border);
   background: var(--surface-raised);
@@ -432,7 +432,7 @@ button:disabled {
 }
 
 .snap .field input {
-  width: 4em;
+  width: 3em;
 }
 
 /* The labels in the status bar stay on one line when space gets tight. */
