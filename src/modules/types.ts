@@ -3,7 +3,11 @@ import type { Geometry } from '../core/geometry/index.ts';
 
 export interface PanelProps<P> {
   readonly params: P;
-  readonly onChange: (params: P) => void;
+  /**
+   * Report changed parameters. Consecutive changes with the same `mergeKey`
+   * (e.g. typing in one text field) become a single undo step.
+   */
+  readonly onChange: (params: P, mergeKey?: string) => void;
 }
 
 /**

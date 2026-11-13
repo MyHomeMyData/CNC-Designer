@@ -162,7 +162,9 @@ function LayerProperties({ project, layer }: { readonly project: Project; readon
   /** Change the placement but keep the layer where it is. */
   const placeInPlace = (placement: Placement) =>
     place(localCenter ? keepInPlace(layer.placement, placement, localCenter) : placement);
-  const panel = module?.renderPanel(layer.params, (params) => change({ params }));
+  const panel = module?.renderPanel(layer.params, (params, mergeKey) =>
+    change({ params }, mergeKey === undefined ? undefined : `${mergeKey}-${layer.id}`),
+  );
 
   return (
     <>

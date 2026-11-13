@@ -3,6 +3,7 @@ import type { Geometry } from '../core/geometry/index.ts';
 import type { GeometryResolver } from '../core/project/index.ts';
 import { shapesModule } from './shapes/index.ts';
 import { svgModule } from './svg/index.ts';
+import { textModule } from './text/index.ts';
 import type { DesignModule } from './types.ts';
 
 /**
@@ -20,7 +21,7 @@ export interface RegisteredModule {
   /** Geometry for the given parameters, or `null` if they are unusable. */
   generate(params: unknown): Geometry | null;
   /** Controls for the given parameters, or `null` if they are unusable. */
-  renderPanel(params: unknown, onChange: (params: unknown) => void): ReactNode;
+  renderPanel(params: unknown, onChange: (params: unknown, mergeKey?: string) => void): ReactNode;
 }
 
 function register<P>(module: DesignModule<P>): RegisteredModule {
@@ -55,7 +56,11 @@ function register<P>(module: DesignModule<P>): RegisteredModule {
 }
 
 /** All design modules of the app. New modules are added here. */
-export const MODULES: readonly RegisteredModule[] = [register(shapesModule), register(svgModule)];
+export const MODULES: readonly RegisteredModule[] = [
+  register(shapesModule),
+  register(svgModule),
+  register(textModule),
+];
 
 export function findModule(id: string): RegisteredModule | undefined {
   return MODULES.find((module) => module.id === id);

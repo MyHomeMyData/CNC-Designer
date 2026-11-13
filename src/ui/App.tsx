@@ -82,6 +82,7 @@ export function App() {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target;
       // Text fields keep their own undo while the user is typing in them.
+      if (target instanceof HTMLTextAreaElement) return;
       if (target instanceof HTMLInputElement && target.type === 'text') return;
       if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
       const key = event.key.toLowerCase();

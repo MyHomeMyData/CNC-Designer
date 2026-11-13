@@ -87,6 +87,29 @@ export function TextField({ label, value, onChange }: TextFieldProps) {
   );
 }
 
+interface TextAreaFieldProps {
+  readonly label: string;
+  readonly value: string;
+  readonly onChange: (value: string) => void;
+  readonly rows?: number;
+}
+
+/** A text input for several lines. */
+export function TextAreaField({ label, value, onChange, rows = 3 }: TextAreaFieldProps) {
+  const id = useId();
+  return (
+    <div className="field-stacked">
+      <label htmlFor={id}>{label}</label>
+      <textarea
+        id={id}
+        rows={rows}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </div>
+  );
+}
+
 interface SelectFieldProps<T extends string> {
   readonly label: string;
   readonly value: T;

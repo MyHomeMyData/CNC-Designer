@@ -68,6 +68,7 @@ body {
 
 button,
 input,
+textarea,
 select {
   font: inherit;
   color: inherit;
@@ -75,6 +76,7 @@ select {
 
 button,
 select,
+textarea,
 input[type='text'] {
   background: var(--surface-raised);
   border: 1px solid var(--border);
@@ -245,6 +247,17 @@ button:disabled {
 .field-input input.invalid {
   border-color: var(--error);
   outline: 1px solid var(--error);
+}
+
+.field-stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.field-stacked textarea {
+  width: 100%;
+  resize: vertical;
 }
 
 .unit {

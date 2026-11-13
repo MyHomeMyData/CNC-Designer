@@ -7,8 +7,9 @@ Design something, get a rough 2D preview of the result, and export G-code
 that distinguishes working moves from positioning moves, each with its own
 Z height and feed rate.
 
-**Status: early prototype.** The shared core, the user interface and a first
-module with basic shapes exist. The use cases below are still to come.
+**Status: early prototype.** The shared core, the user interface and modules
+for basic shapes, SVG import and text exist. G-code from the app has been run
+on the machine. The remaining use cases below are still to come.
 
 ## Planned use cases
 
@@ -111,6 +112,14 @@ Source layout:
 
 This project is developed with the help of an AI assistant (Claude Code by
 Anthropic). AI-assisted commits carry a `Co-Authored-By` trailer.
+
+## Third-party components
+
+The app embeds the fonts Roboto, Merriweather, Oswald and Dancing Script
+(Latin subsets, from the `@fontsource` packages). They are licensed under
+the [SIL Open Font License 1.1](https://openfontlicense.org/); the license
+texts are part of those packages. Libraries used at run time: React,
+opentype.js, svgpath, zod (MIT) and saxes (ISC).
 
 ## License
 

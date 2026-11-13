@@ -30,6 +30,27 @@ export function pickTextFile(accept: string): Promise<{ name: string; text: stri
   });
 }
 
+/** Let the user pick a file and return its bytes, or `null` if nothing was picked. */
+export function pickBinaryFile(
+  accept: string,
+): Promise<{ name: string; data: ArrayBuffer } | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    input.addEventListener('change', () => {
+      const file = input.files?.[0];
+      if (!file) return resolve(null);
+      file.arrayBuffer().then(
+        (data) => resolve({ name: file.name, data }),
+        () => resolve(null),
+      );
+    });
+    input.addEventListener('cancel', () => resolve(null));
+    input.click();
+  });
+}
+
 /** Local date and time as `YYYY-MM-DD HH:MM`. */
 export function timestamp(date = new Date()): string {
   const pad = (value: number) => String(value).padStart(2, '0');
