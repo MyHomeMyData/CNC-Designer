@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Text: the position of a text layer now refers to the baseline of the last
+  line instead of the first, so it marks the lower edge of the whole block.
+  Multi-line texts in existing projects move up by the height of the lines
+  above the last one and need to be placed again.
+
 ## 0.1.0 – 2026-11-13
 
 First usable version.

@@ -79,6 +79,10 @@ height_ is the height of a capital letter in millimetres. Six fonts come
 with the app; _Use a font file…_ takes any font in TTF, OTF or WOFF format
 and stores it in the project.
 
+The position of a text layer refers to the baseline of its last line: the
+left end, the middle or the right end of it, depending on the alignment.
+Earlier lines stand above. Only descenders, as in g or p, reach below.
+
 Letters are drawn as outlines: the tool follows the edge of each letter.
 Single-line engraving fonts are not supported yet.
 

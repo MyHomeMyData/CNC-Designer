@@ -96,10 +96,19 @@ describe('text layout', () => {
     expect(wide.minX).toBeCloseTo(tight.minX, 6);
   });
 
-  it('puts further lines below the first one', () => {
+  it('stands the last line on the origin and stacks earlier lines above it', () => {
     const b = box(generateText(params({ text: 'H\nH', capHeight: 10, lineSpacing: 2 })));
-    expect(b.maxY).toBeCloseTo(10, 2);
-    expect(b.minY).toBeCloseTo(-20, 2);
+    expect(b.minY).toBeCloseTo(0, 2);
+    expect(b.maxY).toBeCloseTo(30, 2);
+    const three = box(generateText(params({ text: 'H\nH\nH', capHeight: 10, lineSpacing: 2 })));
+    expect(three.minY).toBeCloseTo(0, 2);
+    expect(three.maxY).toBeCloseTo(50, 2);
+  });
+
+  it('ignores empty lines at the end when placing the text', () => {
+    const b = box(generateText(params({ text: 'H\nH\n\n', capHeight: 10, lineSpacing: 2 })));
+    expect(b.minY).toBeCloseTo(0, 2);
+    expect(b.maxY).toBeCloseTo(30, 2);
   });
 
   it('aligns lines to the left, the centre or the right of the origin', () => {
@@ -112,7 +121,7 @@ describe('text layout', () => {
     expect(box(center).minX + box(center).maxX).toBeCloseTo(0, 0);
     // the short second line is centred under the long first one
     const second = {
-      polylines: center.polylines.filter((p) => (p.points[0]?.y ?? 0) < 0),
+      polylines: center.polylines.filter((p) => (p.points[0]?.y ?? 0) < 25),
       points: [],
     };
     expect(box(second).minX + box(second).maxX).toBeCloseTo(0, 0);

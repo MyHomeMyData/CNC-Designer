@@ -47,16 +47,22 @@ export function missingCharacters(font: Font, text: string): string[] {
 /**
  * Outlines of the text as paths.
  *
- * The origin is on the baseline of the first line: at its left end, its
- * middle or its right end, depending on the alignment. Further lines
- * follow below.
+ * The origin is on the baseline of the last line that has text: at its left
+ * end, its middle or its right end, depending on the alignment. Earlier
+ * lines stand above it, so the origin marks the lower edge of the whole
+ * block (apart from descenders, as in g or p).
  */
 export function layoutText(font: Font, text: string, style: TextStyle): Geometry {
   const fontSize = style.capHeight / capHeightRatio(font);
   const unit = fontSize / font.unitsPerEm;
   const builder = new PathBuilder(style.tolerance);
 
-  text.split(/\r?\n/).forEach((line, lineIndex) => {
+  const lines = text.split(/\r?\n/);
+  // Empty lines at the end take no part in the placement.
+  let lastLine = lines.length - 1;
+  while (lastLine > 0 && (lines[lastLine] ?? '').trim() === '') lastLine -= 1;
+
+  lines.forEach((line, lineIndex) => {
     // One glyph per character. The library's own text shaping (ligatures)
     // fails on some fonts, and for engraving plain letters are what is wanted.
     const glyphs = [...line].map((char) => font.charToGlyph(char));
@@ -70,7 +76,7 @@ export function layoutText(font: Font, text: string, style: TextStyle): Geometry
       if (next) x += font.getKerningValue(glyph, next) * unit + style.letterSpacing;
     });
     const offset = style.align === 'left' ? 0 : style.align === 'center' ? -x / 2 : -x;
-    const baseline = -lineIndex * style.capHeight * style.lineSpacing;
+    const baseline = (lastLine - lineIndex) * style.capHeight * style.lineSpacing;
 
     glyphs.forEach((glyph, index) => {
       const left = offset + (positions[index] ?? 0);
