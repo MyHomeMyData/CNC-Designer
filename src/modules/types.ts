@@ -21,6 +21,14 @@ export interface DesignModule<P> {
   /** Kind of operation that suits a new layer of this module. */
   readonly defaultOperationKind: 'follow' | 'drill';
   defaultParams(): P;
+  /**
+   * Create the parameters of a new layer with the help of the user, e.g. by
+   * asking for a file. Resolves to `null` if the user cancels. Modules
+   * without this start from `defaultParams`.
+   */
+  createParams?(): Promise<P | null>;
+  /** Suggested name for a new layer with these parameters. */
+  layerName?(params: P): string;
   /** Check parameters read from a project file; `null` if they are unusable. */
   parseParams(raw: unknown): P | null;
   /** Compute the geometry in the layer's own coordinates. Must be a pure function. */

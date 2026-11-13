@@ -1,4 +1,4 @@
-import type { Geometry, Vec2 } from '../../core/geometry/index.ts';
+import type { BBox2, Geometry, Vec2 } from '../../core/geometry/index.ts';
 import type { WorkArea, Workpiece } from '../../core/machine/index.ts';
 import type { Move, Toolpath } from '../../core/toolpath/index.ts';
 import { gridStep, toScreen, toWorld, type View } from './view.ts';
@@ -17,6 +17,8 @@ export interface Scene {
   readonly workpiece: Workpiece;
   readonly layers: readonly SceneLayer[];
   readonly selectedLayerId: string | null;
+  /** Box around the selected layer, drawn with handles; `null` for none. */
+  readonly selectionBox: BBox2 | null;
   readonly toolpaths: readonly Toolpath[];
   readonly showResult: boolean;
   readonly showTravel: boolean;
@@ -218,6 +220,69 @@ function drawOrigin(ctx: Ctx, view: View, palette: Palette): void {
   ctx.fill();
 }
 
+/** Distance of the rotation handle above the selection box, in pixels. */
+const ROTATE_HANDLE_OFFSET = 26;
+const HANDLE_SIZE = 9;
+
+export interface Handle {
+  readonly kind: 'scale' | 'rotate';
+  /** Position on screen. */
+  readonly screen: Vec2;
+  /** For `scale`: the opposite corner, which stays in place. For `rotate`: the centre. */
+  readonly pivot: Vec2;
+  /** For `scale`: the corner the handle sits on, in program coordinates. */
+  readonly corner: Vec2;
+}
+
+/** The handles of a selection box: one per corner for scaling, one on top for rotating. */
+export function selectionHandles(view: View, box: BBox2): Handle[] {
+  const corners: Vec2[] = [
+    { x: box.minX, y: box.minY },
+    { x: box.maxX, y: box.minY },
+    { x: box.maxX, y: box.maxY },
+    { x: box.minX, y: box.maxY },
+  ];
+  const center = { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 };
+  const handles: Handle[] = corners.map((corner, index) => ({
+    kind: 'scale',
+    screen: toScreen(view, corner),
+    pivot: corners[(index + 2) % 4] as Vec2,
+    corner,
+  }));
+  const top = toScreen(view, { x: center.x, y: box.maxY });
+  handles.push({
+    kind: 'rotate',
+    screen: { x: top.x, y: top.y - ROTATE_HANDLE_OFFSET },
+    pivot: center,
+    corner: center,
+  });
+  return handles;
+}
+
+function drawSelection(ctx: Ctx, view: View, box: BBox2, palette: Palette): void {
+  rectPath(ctx, view, { min: box.minX, max: box.maxX }, { min: box.minY, max: box.maxY });
+  ctx.strokeStyle = palette.selected;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 3]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = palette.background;
+  for (const handle of selectionHandles(view, box)) {
+    const { x, y } = handle.screen;
+    ctx.beginPath();
+    if (handle.kind === 'rotate') {
+      const top = toScreen(view, { x: handle.pivot.x, y: box.maxY });
+      line(ctx, top, handle.screen);
+      ctx.beginPath();
+      ctx.arc(x, y, HANDLE_SIZE / 2 + 1, 0, 2 * Math.PI);
+    } else {
+      ctx.rect(x - HANDLE_SIZE / 2, y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
+    }
+    ctx.fill();
+    ctx.stroke();
+  }
+}
+
 /** Draw the whole scene. The context must be scaled to CSS pixels. */
 export function drawScene(ctx: Ctx, scene: Scene, palette: Palette): void {
   const { view, width, height, workArea, workpiece } = scene;
@@ -250,6 +315,8 @@ export function drawScene(ctx: Ctx, scene: Scene, palette: Palette): void {
   ctx.lineWidth = 1.5;
   ctx.setLineDash([8, 5]);
   ctx.stroke();
+
+  if (scene.selectionBox) drawSelection(ctx, view, scene.selectionBox, palette);
 
   drawOrigin(ctx, view, palette);
 }

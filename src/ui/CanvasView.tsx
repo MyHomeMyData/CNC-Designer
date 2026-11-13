@@ -1,8 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
-import { distanceToGeometry, type Vec2 } from '../core/geometry/index.ts';
+import { bboxOfGeometry, distanceToGeometry, type Vec2 } from '../core/geometry/index.ts';
 import type { WorkArea, Workpiece } from '../core/machine/index.ts';
 import type { Toolpath } from '../core/toolpath/index.ts';
-import { drawScene, type Palette, type SceneLayer } from './canvas/draw.ts';
+import {
+  drawScene,
+  selectionHandles,
+  type Handle,
+  type Palette,
+  type SceneLayer,
+} from './canvas/draw.ts';
 import { fitView, pan, toWorld, zoomAt, type View } from './canvas/view.ts';
 import { CheckField } from './fields.tsx';
 
@@ -14,11 +20,23 @@ interface CanvasViewProps {
   readonly toolpaths: readonly Toolpath[];
   readonly onSelect: (layerId: string | null) => void;
   /**
-   * Called while a layer is dragged, with the total distance in mm since the
-   * drag began. `dragId` is the same for all calls of one drag.
+   * Called while a layer is dragged or one of its handles is pulled, with
+   * the total change since the drag began. `dragId` is the same for all
+   * calls of one drag.
    */
-  readonly onDragLayer: (layerId: string, dx: number, dy: number, dragId: number) => void;
+  readonly onDragLayer: (layerId: string, change: LayerDrag, dragId: number) => void;
 }
+
+/** What a drag does to a layer, relative to its placement when the drag began. */
+export type LayerDrag =
+  | { readonly kind: 'move'; readonly dx: number; readonly dy: number }
+  | { readonly kind: 'scale'; readonly pivot: Vec2; readonly factor: number }
+  | { readonly kind: 'rotate'; readonly pivot: Vec2; readonly degrees: number };
+
+/** A handle is hit within this many pixels of its centre. */
+const HANDLE_PIXELS = 9;
+/** With Shift held, rotation snaps to multiples of this angle. */
+const ROTATION_SNAP = 15;
 
 /** A click selects the layer whose geometry is within this many pixels. */
 const HIT_PIXELS = 7;
@@ -58,15 +76,22 @@ export function CanvasView(props: CanvasViewProps) {
   const [showResult, setShowResult] = useState(true);
   const [showTravel, setShowTravel] = useState(true);
   const [pointer, setPointer] = useState<Vec2 | null>(null);
-  const [overLayer, setOverLayer] = useState(false);
+  const [cursor, setCursor] = useState('grab');
   const drag = useRef<{
     start: Vec2;
     last: Vec2;
     moved: boolean;
-    /** Layer that is being moved; `null` when the view is panned instead. */
+    /** Layer that is being changed; `null` when the view is panned instead. */
     layerId: string | null;
+    /** Handle that is being pulled; `null` when the layer itself is moved. */
+    handle: Handle | null;
     id: number;
   } | null>(null);
+
+  const selectionBox = useMemo(() => {
+    const selected = layers.find((layer) => layer.id === selectedLayerId);
+    return selected?.geometry ? bboxOfGeometry(selected.geometry) : null;
+  }, [layers, selectedLayerId]);
 
   const fitted = useMemo(
     () =>
@@ -129,13 +154,35 @@ export function CanvasView(props: CanvasViewProps) {
         workpiece,
         layers,
         selectedLayerId,
+        selectionBox,
         toolpaths,
         showResult,
         showTravel,
       },
       readPalette(canvas),
     );
-  }, [view, size, workArea, workpiece, layers, selectedLayerId, toolpaths, showResult, showTravel]);
+  }, [
+    view,
+    size,
+    workArea,
+    workpiece,
+    layers,
+    selectedLayerId,
+    selectionBox,
+    toolpaths,
+    showResult,
+    showTravel,
+  ]);
+
+  function handleAt(pixel: Vec2): Handle | null {
+    if (!selectionBox) return null;
+    return (
+      selectionHandles(view, selectionBox).find(
+        (handle) =>
+          Math.hypot(handle.screen.x - pixel.x, handle.screen.y - pixel.y) <= HANDLE_PIXELS,
+      ) ?? null
+    );
+  }
 
   function layerAt(pixel: Vec2): string | null {
     const world = toWorld(view, pixel);
@@ -154,10 +201,12 @@ export function CanvasView(props: CanvasViewProps) {
 
   function onPointerDown(event: PointerEvent<HTMLCanvasElement>): void {
     const pixel = pointerPixel(event, event.currentTarget);
-    // Dragging a layer moves it; dragging empty space moves the view.
-    const layerId = layerAt(pixel);
-    if (layerId) onSelect(layerId);
-    drag.current = { start: pixel, last: pixel, moved: false, layerId, id: Date.now() };
+    // Pulling a handle scales or rotates the selected layer, dragging a layer
+    // moves it, and dragging empty space moves the view.
+    const handle = handleAt(pixel);
+    const layerId = handle ? selectedLayerId : layerAt(pixel);
+    if (layerId && !handle) onSelect(layerId);
+    drag.current = { start: pixel, last: pixel, moved: false, layerId, handle, id: Date.now() };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
@@ -166,17 +215,47 @@ export function CanvasView(props: CanvasViewProps) {
     setPointer(toWorld(view, pixel));
     const current = drag.current;
     if (!current) {
-      setOverLayer(layerAt(pixel) !== null);
+      const handle = handleAt(pixel);
+      setCursor(
+        handle?.kind === 'rotate'
+          ? 'crosshair'
+          : handle
+            ? 'nesw-resize'
+            : layerAt(pixel) !== null
+              ? 'move'
+              : 'grab',
+      );
       return;
     }
     if (Math.hypot(pixel.x - current.start.x, pixel.y - current.start.y) > CLICK_PIXELS) {
       current.moved = true;
     }
-    if (current.moved && current.layerId) {
+    if (current.moved && current.layerId && current.handle) {
+      const { kind, pivot, corner } = current.handle;
+      const world = toWorld(view, pixel);
+      if (kind === 'scale') {
+        const reference = Math.hypot(corner.x - pivot.x, corner.y - pivot.y);
+        const factor = Math.hypot(world.x - pivot.x, world.y - pivot.y) / reference;
+        if (reference > 0 && factor > 0.001) {
+          onDragLayer(current.layerId, { kind, pivot, factor }, current.id);
+        }
+      } else {
+        const began = toWorld(view, current.start);
+        const angle = (from: Vec2) => Math.atan2(from.y - pivot.y, from.x - pivot.x);
+        let degrees = ((angle(world) - angle(began)) * 180) / Math.PI;
+        degrees = event.shiftKey
+          ? Math.round(degrees / ROTATION_SNAP) * ROTATION_SNAP
+          : Math.round(degrees * 10) / 10;
+        onDragLayer(current.layerId, { kind, pivot, degrees }, current.id);
+      }
+    } else if (current.moved && current.layerId) {
       onDragLayer(
         current.layerId,
-        (pixel.x - current.start.x) / view.scale,
-        (current.start.y - pixel.y) / view.scale,
+        {
+          kind: 'move',
+          dx: (pixel.x - current.start.x) / view.scale,
+          dy: (current.start.y - pixel.y) / view.scale,
+        },
         current.id,
       );
     } else if (current.moved) {
@@ -199,7 +278,7 @@ export function CanvasView(props: CanvasViewProps) {
       <div className="canvas-wrapper" ref={wrapperRef}>
         <canvas
           ref={canvasRef}
-          style={{ width: size.width, height: size.height, cursor: overLayer ? 'move' : 'grab' }}
+          style={{ width: size.width, height: size.height, cursor }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}

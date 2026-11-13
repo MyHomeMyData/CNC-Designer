@@ -9,8 +9,22 @@ import {
   type Layer,
   type Project,
 } from '../../core/project/index.ts';
-import { DEFAULT_PLACEMENT } from '../../core/geometry/index.ts';
-import { findModule, MODULES } from '../../modules/registry.tsx';
+import {
+  applyToGeometry,
+  applyToPoint,
+  bboxOfGeometry,
+  centerOf,
+  centerOn,
+  DEFAULT_PLACEMENT,
+  fitInto,
+  keepInPlace,
+  mirrorAbout,
+  placementToTransform,
+  rotateAbout,
+  scaleAbout,
+  type Placement,
+} from '../../core/geometry/index.ts';
+import { findModule, MODULES, resolveLayerGeometry } from '../../modules/registry.tsx';
 import { CheckField, NumberField, Section, SelectField, TextField } from '../fields.tsx';
 import { store } from '../store.ts';
 
@@ -19,9 +33,11 @@ interface LayersPanelProps {
   readonly selectedLayerId: string | null;
 }
 
-function createLayer(project: Project, moduleId: string): Layer | null {
+async function createLayer(project: Project, moduleId: string): Promise<Layer | null> {
   const module = findModule(moduleId);
   if (!module) return null;
+  const params = await module.createParams();
+  if (params === null) return null;
   const operation =
     project.operations.find((candidate) => candidate.kind === module.defaultOperationKind) ??
     project.operations[0];
@@ -31,12 +47,12 @@ function createLayer(project: Project, moduleId: string): Layer | null {
       project.layers.map((layer) => layer.id),
     ),
     name: uniqueName(
-      module.name,
+      module.layerName(params),
       project.layers.map((layer) => layer.name),
     ),
     visible: true,
     moduleId,
-    params: module.defaultParams(),
+    params,
     placement: DEFAULT_PLACEMENT,
     operationId: operation?.id ?? null,
     optimizeOrder: true,
@@ -47,8 +63,9 @@ export function LayersPanel({ project, selectedLayerId }: LayersPanelProps) {
   const [moduleId, setModuleId] = useState(MODULES[0]?.id ?? '');
   const selected = project.layers.find((layer) => layer.id === selectedLayerId);
 
-  function add(): void {
-    const layer = createLayer(project, moduleId);
+  async function add(): Promise<void> {
+    // The project may change while a file dialog is open; use the current one.
+    const layer = await createLayer(store.getState().project, moduleId);
     if (!layer) return;
     store.edit((current) => addLayer(current, layer));
     store.select(layer.id);
@@ -109,7 +126,7 @@ export function LayersPanel({ project, selectedLayerId }: LayersPanelProps) {
               </option>
             ))}
           </select>
-          <button type="button" onClick={add}>
+          <button type="button" onClick={() => void add()}>
             Add layer
           </button>
         </div>
@@ -123,8 +140,28 @@ function LayerProperties({ project, layer }: { readonly project: Project; readon
   const module = findModule(layer.moduleId);
   const change = (changes: Partial<Layer>, mergeKey?: string) =>
     store.edit((current) => updateLayer(current, layer.id, changes), mergeKey);
-  const place = (changes: Partial<Layer['placement']>) =>
-    change({ placement: { ...layer.placement, ...changes } });
+  const place = (placement: Placement) => change({ placement });
+
+  // The centre of the layer's own geometry is the fixed point for turning,
+  // scaling and mirroring: it follows the layer, however it is placed.
+  const local = resolveLayerGeometry(layer);
+  const localBox = local ? bboxOfGeometry(local) : null;
+  const localCenter = localBox ? centerOf(localBox) : null;
+  const transform = placementToTransform(layer.placement);
+  const pivot = localCenter ? applyToPoint(transform, localCenter) : null;
+  const box = local ? bboxOfGeometry(applyToGeometry(transform, local)) : null;
+  const width = box ? box.maxX - box.minX : 0;
+  const height = box ? box.maxY - box.minY : 0;
+  const { workpiece } = project;
+  const pieceBox = {
+    minX: workpiece.x.min,
+    minY: workpiece.y.min,
+    maxX: workpiece.x.max,
+    maxY: workpiece.y.max,
+  };
+  /** Change the placement but keep the layer where it is. */
+  const placeInPlace = (placement: Placement) =>
+    place(localCenter ? keepInPlace(layer.placement, placement, localCenter) : placement);
   const panel = module?.renderPanel(layer.params, (params) => change({ params }));
 
   return (
@@ -148,33 +185,97 @@ function LayerProperties({ project, layer }: { readonly project: Project; readon
           label="Position X"
           unit="mm"
           value={layer.placement.x}
-          onCommit={(x) => place({ x })}
+          onCommit={(x) => place({ ...layer.placement, x })}
         />
         <NumberField
           label="Position Y"
           unit="mm"
           value={layer.placement.y}
-          onCommit={(y) => place({ y })}
+          onCommit={(y) => place({ ...layer.placement, y })}
         />
         <NumberField
           label="Rotation"
           unit="°"
-          title="Counter-clockwise, about the layer's own origin"
+          title="Counter-clockwise, about the centre of the layer"
           value={layer.placement.rotation}
-          onCommit={(rotation) => place({ rotation })}
+          onCommit={(rotation) => placeInPlace({ ...layer.placement, rotation })}
         />
         <NumberField
           label="Scale X"
-          title="A negative factor mirrors"
+          title="Along the layer's own X direction. A negative factor mirrors."
           value={layer.placement.scaleX}
-          onCommit={(scaleX) => scaleX !== 0 && place({ scaleX })}
+          onCommit={(scaleX) => scaleX !== 0 && placeInPlace({ ...layer.placement, scaleX })}
         />
         <NumberField
           label="Scale Y"
-          title="A negative factor mirrors"
+          title="Along the layer's own Y direction. A negative factor mirrors."
           value={layer.placement.scaleY}
-          onCommit={(scaleY) => scaleY !== 0 && place({ scaleY })}
+          onCommit={(scaleY) => scaleY !== 0 && placeInPlace({ ...layer.placement, scaleY })}
         />
+        {box && pivot && (
+          <>
+            <p className="hint">Size as placed. Changing one value scales the whole layer.</p>
+            <NumberField
+              label="Size in X"
+              unit="mm"
+              disabled={width === 0}
+              value={width}
+              onCommit={(value) => place(scaleAbout(layer.placement, pivot, value / width))}
+            />
+            <NumberField
+              label="Size in Y"
+              unit="mm"
+              disabled={height === 0}
+              value={height}
+              onCommit={(value) => place(scaleAbout(layer.placement, pivot, value / height))}
+            />
+            <div className="row">
+              <button
+                type="button"
+                title="Turn 90° counter-clockwise"
+                onClick={() => place(rotateAbout(layer.placement, pivot, 90))}
+              >
+                ⟲ 90°
+              </button>
+              <button
+                type="button"
+                title="Turn 90° clockwise"
+                onClick={() => place(rotateAbout(layer.placement, pivot, -90))}
+              >
+                ⟳ 90°
+              </button>
+              <button
+                type="button"
+                title="Mirror left and right"
+                onClick={() => place(mirrorAbout(layer.placement, pivot, 'horizontal'))}
+              >
+                Flip ↔
+              </button>
+              <button
+                type="button"
+                title="Mirror top and bottom"
+                onClick={() => place(mirrorAbout(layer.placement, pivot, 'vertical'))}
+              >
+                Flip ↕
+              </button>
+            </div>
+            <div className="row">
+              <button
+                type="button"
+                onClick={() => place(centerOn(layer.placement, box, centerOf(pieceBox)))}
+              >
+                Centre on workpiece
+              </button>
+              <button
+                type="button"
+                title="Scale and centre the layer so that it fills the workpiece"
+                onClick={() => place(fitInto(layer.placement, box, pieceBox))}
+              >
+                Fit into workpiece
+              </button>
+            </div>
+          </>
+        )}
       </Section>
       <Section title="Machining">
         <SelectField

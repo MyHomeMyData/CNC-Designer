@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { rotateAbout, scaleAbout, type Placement } from '../core/geometry/index.ts';
 import type { Issue } from '../core/issues.ts';
 import { validateWorkArea, validateWorkpiece } from '../core/machine/index.ts';
 import {
@@ -12,7 +13,7 @@ import {
 } from '../core/project/index.ts';
 import { APP_NAME, APP_VERSION } from '../core/version.ts';
 import { resolveLayerGeometry } from '../modules/registry.tsx';
-import { CanvasView } from './CanvasView.tsx';
+import { CanvasView, type LayerDrag } from './CanvasView.tsx';
 import { downloadText, pickTextFile } from './files.ts';
 import { IssueList } from './panels/IssueList.tsx';
 import { LayersPanel } from './panels/LayersPanel.tsx';
@@ -98,24 +99,25 @@ export function App() {
 
   /** Round to a tenth of a millimetre, so dragging gives tidy positions. */
   const tidy = (value: number) => Math.round(value * 10) / 10;
-  const dragStart = useRef<{ dragId: number; x: number; y: number } | null>(null);
+  const dragStart = useRef<{ dragId: number; placement: Placement } | null>(null);
 
-  function dragLayer(layerId: string, dx: number, dy: number, dragId: number): void {
+  function dragLayer(layerId: string, change: LayerDrag, dragId: number): void {
     const layer = store.getState().project.layers.find((candidate) => candidate.id === layerId);
     if (!layer) return;
     if (dragStart.current?.dragId !== dragId) {
-      dragStart.current = { dragId, x: layer.placement.x, y: layer.placement.y };
+      dragStart.current = { dragId, placement: layer.placement };
     }
-    const { x, y } = dragStart.current;
+    // Every step is computed from the placement at the start of the drag,
+    // so rounding does not add up.
+    const began = dragStart.current.placement;
+    const placement =
+      change.kind === 'move'
+        ? { ...began, x: tidy(began.x + change.dx), y: tidy(began.y + change.dy) }
+        : change.kind === 'scale'
+          ? scaleAbout(began, change.pivot, change.factor)
+          : rotateAbout(began, change.pivot, change.degrees);
     // All edits of one drag share a key and a time, so they form one undo step.
-    store.edit(
-      (current) =>
-        updateLayer(current, layerId, {
-          placement: { ...layer.placement, x: tidy(x + dx), y: tidy(y + dy) },
-        }),
-      `drag-${dragId}`,
-      dragId,
-    );
+    store.edit((current) => updateLayer(current, layerId, { placement }), `drag-${dragId}`, dragId);
   }
 
   function newProject(): void {

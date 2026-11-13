@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Geometry, Polyline } from '../../../src/core/geometry/index.ts';
+import type { Geometry, Polyline, Vec2 } from '../../../src/core/geometry/index.ts';
 import type { WorkArea } from '../../../src/core/machine/index.ts';
 import type { DrillOperation, FollowOperation } from '../../../src/core/operations/index.ts';
 import {
@@ -296,6 +296,22 @@ describe('findViolations', () => {
     const violations = findViolations(buildToolpath([job(paths(line), follow)]), area(5));
     expect(show(violations.map((v) => v.move))).toEqual(['work 10,0,-1 600', 'lift 10,0,5 R']);
     expect(violations[0]?.sectionLabel).toBe('Layer');
+  });
+
+  it('accepts values that round to the limit in the G-code file', () => {
+    const almost: Polyline = {
+      points: [
+        { x: -0.0004, y: 0 },
+        { x: 10.0004, y: 0 },
+      ],
+      closed: false,
+    };
+    expect(findViolations(buildToolpath([job(paths(almost), follow)]), area(10))).toEqual([]);
+    const beyond: Polyline = {
+      points: [{ x: -0.0006, y: 0 }, line.points[1] as Vec2],
+      closed: false,
+    };
+    expect(findViolations(buildToolpath([job(paths(beyond), follow)]), area(10))).not.toEqual([]);
   });
 
   it('reports Z outside the work area', () => {

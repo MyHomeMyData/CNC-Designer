@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import type { Geometry } from '../core/geometry/index.ts';
 import type { GeometryResolver } from '../core/project/index.ts';
 import { shapesModule } from './shapes/index.ts';
+import { svgModule } from './svg/index.ts';
 import type { DesignModule } from './types.ts';
 
 /**
@@ -12,7 +13,10 @@ export interface RegisteredModule {
   readonly id: string;
   readonly name: string;
   readonly defaultOperationKind: 'follow' | 'drill';
-  defaultParams(): unknown;
+  /** Parameters for a new layer, possibly asking the user; `null` if cancelled. */
+  createParams(): Promise<unknown>;
+  /** Suggested name for a new layer with these parameters. */
+  layerName(params: unknown): string;
   /** Geometry for the given parameters, or `null` if they are unusable. */
   generate(params: unknown): Geometry | null;
   /** Controls for the given parameters, or `null` if they are unusable. */
@@ -31,7 +35,12 @@ function register<P>(module: DesignModule<P>): RegisteredModule {
     id: module.id,
     name: module.name,
     defaultOperationKind: module.defaultOperationKind,
-    defaultParams: () => module.defaultParams(),
+    createParams: async () =>
+      module.createParams ? await module.createParams() : module.defaultParams(),
+    layerName(raw) {
+      const params = module.parseParams(raw);
+      return (params !== null && module.layerName?.(params)) || module.name;
+    },
     generate(raw) {
       if (typeof raw !== 'object' || raw === null) return compute(raw);
       if (!cache.has(raw)) cache.set(raw, compute(raw));
@@ -46,7 +55,7 @@ function register<P>(module: DesignModule<P>): RegisteredModule {
 }
 
 /** All design modules of the app. New modules are added here. */
-export const MODULES: readonly RegisteredModule[] = [register(shapesModule)];
+export const MODULES: readonly RegisteredModule[] = [register(shapesModule), register(svgModule)];
 
 export function findModule(id: string): RegisteredModule | undefined {
   return MODULES.find((module) => module.id === id);

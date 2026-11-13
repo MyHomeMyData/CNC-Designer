@@ -73,6 +73,12 @@ function toolpathExtent(moves: readonly Move[]): ToolpathStats['extent'] {
   };
 }
 
+/**
+ * Coordinates are written to G-code with three decimals. A value that
+ * rounds to the limit is on the limit as far as the machine is concerned.
+ */
+const BOUNDS_TOLERANCE = 0.0005;
+
 /** A move that leaves the work area. */
 export interface Violation {
   readonly sectionLabel: string;
@@ -87,7 +93,7 @@ export function findViolations(toolpath: Toolpath, workArea: WorkArea): Violatio
     for (const move of section.moves) {
       const { x, y, z } = move.to;
       const inside = (range: Range, value: number) =>
-        value >= range.min - EPSILON && value <= range.max + EPSILON;
+        value >= range.min - BOUNDS_TOLERANCE && value <= range.max + BOUNDS_TOLERANCE;
       // The initial move to safe Z commands Z only.
       const xyOk = first || (inside(workArea.x, x) && inside(workArea.y, y));
       if (!xyOk || !inside(workArea.z, z)) violations.push({ sectionLabel: section.label, move });
