@@ -237,3 +237,31 @@ test('snap to a grid while dragging, and remember the setting', async ({ page })
   await expect(page.getByLabel('Snap', { exact: true })).not.toBeChecked();
   await expect(page.getByLabel('Snap grid', { exact: true })).toHaveValue('25');
 });
+
+test('design string art from a template and export the drilling program', async ({ page }) => {
+  await openApp(page);
+  await addLayer(page, 'String art');
+  await setNumber(page, 'Position X', 400);
+  await setNumber(page, 'Position Y', 300);
+
+  // the default is the circle with two axes
+  await expect(page.getByText('197 nails to drill.')).toBeVisible();
+  await expect(page.getByText(/Star: [\d.]+ m of thread\./)).toBeVisible();
+
+  // fewer repetitions, fewer nails; one undo brings them back
+  await setNumber(page, 'Repetitions', 2);
+  await expect(page.getByText('101 nails to drill.')).toBeVisible();
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(page.getByText('197 nails to drill.')).toBeVisible();
+
+  // another template replaces rows and threads
+  await page.getByLabel('Template', { exact: true }).selectOption({ label: 'Cardioid' });
+  await expect(page.getByText('120 nails to drill.')).toBeVisible();
+
+  // the nails are drilled: one program with 120 holes
+  await page.getByRole('button', { name: /^G-code/ }).click();
+  const file = await downloadText(page, () => page.locator('.program button').first().click());
+  expect(file.name).toMatch(/\.(gcode|nc)$/);
+  const plunges = file.text.split('\n').filter((line) => /^G1 Z-5/.test(line));
+  expect(plunges.length).toBeGreaterThanOrEqual(120);
+});

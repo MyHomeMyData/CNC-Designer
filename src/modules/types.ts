@@ -10,6 +10,22 @@ export interface PanelProps<P> {
   readonly onChange: (params: P, mergeKey?: string) => void;
 }
 
+/** A coloured line of a module's own preview, in the layer's own coordinates. */
+export interface PreviewStroke {
+  readonly points: readonly Vec2[];
+  /** CSS colour. */
+  readonly color: string;
+  /** Width in mm. */
+  readonly width: number;
+}
+
+/** What a module shows in addition to its geometry, e.g. threads between nails. */
+export interface ModulePreview {
+  /** Colour of the workpiece under this design, or `null` to leave it as it is. */
+  readonly background: string | null;
+  readonly strokes: readonly PreviewStroke[];
+}
+
 /** A handle on the shape itself that changes a parameter when pulled. */
 export interface ModuleHandle {
   /** Stable within one module, e.g. "right". */
@@ -57,6 +73,8 @@ export interface DesignModule<P> {
   parseParams(raw: unknown): P | null;
   /** Compute the geometry in the layer's own coordinates. Must be a pure function. */
   generate(params: P): Geometry;
+  /** An impression of the finished piece beyond the geometry; a pure function. */
+  preview?(params: P): ModulePreview;
   /** Handles shown on the selected layer. Modules without this have none. */
   handles?(params: P): readonly ModuleHandle[];
   /**

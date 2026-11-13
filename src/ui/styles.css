@@ -439,3 +439,50 @@ button:disabled {
 .status-bar label {
   white-space: nowrap;
 }
+
+/* Nested groups inside a panel, e.g. the rows and threads of string art. */
+.sub-heading {
+  margin: 8px 0 0;
+  font-size: 1em;
+}
+
+.sub {
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 4px 8px;
+}
+
+.sub > summary {
+  cursor: pointer;
+}
+
+.sub-body,
+.part {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.part {
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+}
+
+.part-title {
+  font-weight: 600;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.swatch {
+  display: inline-block;
+  width: 0.8em;
+  height: 0.8em;
+  margin-right: 4px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  vertical-align: baseline;
+}

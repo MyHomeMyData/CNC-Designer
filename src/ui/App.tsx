@@ -61,17 +61,32 @@ export function App() {
         .map((layer) => {
           const transform = placementToTransform(layer.placement);
           const origin = applyToPoint(transform, { x: 0, y: 0 });
-          const handles = (findModule(layer.moduleId)?.handles(layer.params) ?? []).map(
-            ({ id, at, axis }) => {
-              const tip = applyToPoint(transform, axis);
-              return {
-                id,
-                at: applyToPoint(transform, at),
-                axis: { x: tip.x - origin.x, y: tip.y - origin.y },
-              };
-            },
-          );
-          return { id: layer.id, geometry: placedGeometry(layer, resolveLayerGeometry), handles };
+          const module = findModule(layer.moduleId);
+          const handles = (module?.handles(layer.params) ?? []).map(({ id, at, axis }) => {
+            const tip = applyToPoint(transform, axis);
+            return {
+              id,
+              at: applyToPoint(transform, at),
+              axis: { x: tip.x - origin.x, y: tip.y - origin.y },
+            };
+          });
+          const own = module?.preview(layer.params) ?? null;
+          // Lines keep their width in mm, so they grow with the layer.
+          const scale = Math.sqrt(Math.abs(layer.placement.scaleX * layer.placement.scaleY));
+          const preview = own && {
+            background: own.background,
+            strokes: own.strokes.map((stroke) => ({
+              color: stroke.color,
+              width: stroke.width * scale,
+              points: stroke.points.map((point) => applyToPoint(transform, point)),
+            })),
+          };
+          return {
+            id: layer.id,
+            geometry: placedGeometry(layer, resolveLayerGeometry),
+            handles,
+            preview,
+          };
         }),
     [project.layers],
   );

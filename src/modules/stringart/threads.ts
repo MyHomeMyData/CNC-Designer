@@ -131,8 +131,8 @@ function routeLength(route: readonly number[], nails: readonly Nail[], nailDiame
 
 /**
  * String one colour of a thread: its parts, one repetition after the
- * other, as a single piece. Each part is strung in the direction that
- * begins closest to where the thread is.
+ * other, as a single piece. Each part can be strung in several directions;
+ * the combination with the shortest crossings between parts is chosen.
  */
 function stringThread(
   thread: Thread,
@@ -142,30 +142,71 @@ function stringThread(
   nailDiameter: number,
 ): StrungThread | null {
   const { nails, rows } = layout;
-  const route: number[] = [];
-  const joins: { index: number; length: number }[] = [];
+  // The possible routes of each part, in the order the parts are strung.
+  const pieces: number[][][] = [];
   for (let copy = colorIndex; copy < repeat; copy += thread.colors.length) {
     for (const part of thread.parts) {
       const from = rows.get(part.from);
       const to = rows.get(part.to);
       if (!from || !to) continue;
       const routes = partRoutes(part, from, to, copy);
-      const first = routes[0];
-      if (!first) continue;
-      const end = route[route.length - 1];
-      if (end === undefined) {
-        route.push(...first);
-        continue;
+      if (routes.length > 0) pieces.push(routes);
+    }
+  }
+  if (pieces.length === 0) return null;
+
+  const gap = (before: number[], after: number[]) =>
+    distance(nails[before[before.length - 1] as number] as Nail, nails[after[0] as number] as Nail);
+
+  // Shortest total crossing length up to each route of each part, and the
+  // route of the part before that it is reached from.
+  const cost: number[][] = [];
+  const cameFrom: number[][] = [];
+  pieces.forEach((routes, piece) => {
+    const previous = pieces[piece - 1];
+    cost.push([]);
+    cameFrom.push([]);
+    routes.forEach((route, variant) => {
+      let best = 0;
+      let bestFrom = -1;
+      if (previous) {
+        best = Number.POSITIVE_INFINITY;
+        previous.forEach((before, index) => {
+          const total = ((cost[piece - 1] as number[])[index] as number) + gap(before, route);
+          // On a tie the earlier route wins: parts are strung as written where possible.
+          if (total < best - 1e-9) {
+            best = total;
+            bestFrom = index;
+          }
+        });
       }
-      const gap = (candidate: number[]) =>
-        distance(nails[end] as Nail, nails[candidate[0] as number] as Nail);
-      const best = routes.reduce((a, b) => (gap(b) < gap(a) ? b : a), first);
-      if (best[0] === end) {
-        route.push(...best.slice(1));
-      } else {
-        joins.push({ index: route.length - 1, length: gap(best) });
-        route.push(...best);
-      }
+      (cost[piece] as number[])[variant] = best;
+      (cameFrom[piece] as number[])[variant] = bestFrom;
+    });
+  });
+
+  const last = cost[cost.length - 1] as number[];
+  let variant = last.reduce(
+    (best, value, index) => (value < (last[best] as number) - 1e-9 ? index : best),
+    0,
+  );
+  const chosen: number[][] = [];
+  for (let piece = pieces.length - 1; piece >= 0; piece--) {
+    chosen.unshift((pieces[piece] as number[][])[variant] as number[]);
+    variant = (cameFrom[piece] as number[])[variant] as number;
+  }
+
+  const route: number[] = [];
+  const joins: { index: number; length: number }[] = [];
+  for (const next of chosen) {
+    const end = route[route.length - 1];
+    if (end === undefined) {
+      route.push(...next);
+    } else if (next[0] === end) {
+      route.push(...next.slice(1));
+    } else {
+      joins.push({ index: route.length - 1, length: gap(route, next) });
+      route.push(...next);
     }
   }
   if (route.length < 2) return null;

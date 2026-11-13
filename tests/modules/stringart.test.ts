@@ -8,6 +8,8 @@ import {
   type ThreadPart,
 } from '../../src/modules/stringart/model.ts';
 import { cosDeg, layoutNails, rowNails, sinDeg } from '../../src/modules/stringart/nails.ts';
+import { generateStringArt, previewStringArt } from '../../src/modules/stringart/compute.ts';
+import { TEMPLATES } from '../../src/modules/stringart/templates.ts';
 import { computeStringArt, partLines, partRoutes } from '../../src/modules/stringart/threads.ts';
 
 const segment = (id: string, x2: number, y2: number, count: number): Row => ({
@@ -395,6 +397,69 @@ describe('repetition', () => {
     const to = art.layout.nails[route[(join?.index ?? 0) + 1] ?? -1];
     if (!from || !to) throw new Error('join missing');
     expect(distance(from, to)).toBeCloseTo(join?.length ?? 0, 9);
+  });
+});
+
+describe('direction of the parts', () => {
+  it('is chosen over the whole thread, not part by part', () => {
+    // Six nails per spoke: strung as written, the first part would end at
+    // a tip where no other part begins. Looking ahead avoids every crossing.
+    const art = computeStringArt(
+      design({
+        rows: [segment('a', 50, 0, 6)],
+        threads: [thread([part({ from: 'a', to: 'a', toCopy: 1, reverse: true })])],
+        repeat: 4,
+      }),
+    );
+    expect(art.threads[0]?.joins).toEqual([]);
+    expect(art.threads[0]?.route).toHaveLength(4 * 11 + 1);
+  });
+});
+
+describe('templates', () => {
+  it('are valid designs without problems and without crossings between parts', () => {
+    expect(TEMPLATES.map((template) => template.id)).toEqual([
+      'circle-axes',
+      'parabola-star',
+      'cardioid',
+    ]);
+    for (const template of TEMPLATES) {
+      const params = template.create();
+      expect(parseStringArtParams(params), template.id).toEqual(params);
+      const art = computeStringArt(params);
+      expect(art.issues, template.id).toEqual([]);
+      expect(art.threads.length, template.id).toBeGreaterThan(0);
+      for (const strung of art.threads) expect(strung.joins, template.id).toEqual([]);
+    }
+  });
+
+  it('circle with axes: a circle of 100 nails, two axes, and the centre', () => {
+    const params = TEMPLATES[0]?.create();
+    if (!params) throw new Error('template missing');
+    const art = computeStringArt(params);
+    // per quarter 25 new nails on the arc and 24 on the half axis, plus the centre
+    expect(art.layout.nails).toHaveLength(4 * 25 + 4 * 24 + 1);
+    expect(art.threads.map((t) => t.name)).toEqual(['Star', 'Rim']);
+  });
+});
+
+describe('geometry and preview', () => {
+  it('give the nails as points to drill and one line per thread', () => {
+    const params = design({
+      rows: [segment('a', 40, 0, 5), segment('b', 0, 40, 5)],
+      threads: [thread([part({ reverse: true })]), { ...thread([part()]), visible: false }],
+      background: '#101010',
+    });
+    const geometry = generateStringArt(params);
+    expect(geometry.polylines).toEqual([]);
+    expect(geometry.points).toHaveLength(9);
+    expect(geometry.points[0]).toEqual({ x: 0, y: 0 });
+    const preview = previewStringArt(params);
+    expect(preview.background).toBe('#101010');
+    expect(preview.strokes).toHaveLength(1);
+    expect(preview.strokes[0]?.color).toBe('#00aacc');
+    expect(preview.strokes[0]?.points).toHaveLength(10);
+    expect(preview.strokes[0]?.points[1]).toEqual({ x: 0, y: 40 });
   });
 });
 
