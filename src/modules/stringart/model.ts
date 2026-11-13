@@ -1,0 +1,114 @@
+import { z } from 'zod';
+
+const finite = z.number().finite();
+const positive = finite.positive();
+const id = z.string().min(1);
+const color = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+
+/** The curve a row of nails stands on, in the layer's own coordinates (mm, degrees). */
+const curveSchema = z.discriminatedUnion('kind', [
+  z.strictObject({
+    kind: z.literal('segment'),
+    x1: finite,
+    y1: finite,
+    x2: finite,
+    y2: finite,
+  }),
+  /**
+   * Part of an ellipse (a circle if both radii are equal), counter-clockwise
+   * from the angle `start` to the angle `end`. A sweep of 360 degrees or
+   * more is the whole ellipse, a closed row.
+   */
+  z.strictObject({
+    kind: z.literal('arc'),
+    cx: finite,
+    cy: finite,
+    rx: positive,
+    ry: positive,
+    start: finite,
+    end: finite,
+  }),
+  /** Regular polygon; `rotation` is the direction of the first corner. A closed row. */
+  z.strictObject({
+    kind: z.literal('polygon'),
+    cx: finite,
+    cy: finite,
+    radius: positive,
+    sides: z.number().int().min(3).max(24),
+    rotation: finite,
+  }),
+]);
+
+/** How the nails are spread along the curve: a number of nails, or a distance between them. */
+const spacingSchema = z.discriminatedUnion('mode', [
+  z.strictObject({ mode: z.literal('count'), count: z.number().int().min(2).max(2000) }),
+  z.strictObject({ mode: z.literal('distance'), distance: positive }),
+]);
+
+const rowSchema = z.strictObject({
+  id,
+  name: z.string(),
+  curve: curveSchema,
+  nails: spacingSchema,
+});
+
+/**
+ * One rule of a thread: nail `i` of the row `from` is connected to nail
+ * `a * i + b` of the row `to`. Nails are counted from 0.
+ */
+const partSchema = z.strictObject({
+  from: id,
+  to: id,
+  /** The row `to` is taken from the repetition this many steps further on. */
+  toCopy: z.number().int().min(0),
+  /**
+   * `zigzag`: there and back between the two rows, moving on to the next
+   * nail at each end. `chain`: on one closed row, each line starts where
+   * the last one ended.
+   */
+  mode: z.enum(['zigzag', 'chain']),
+  a: z.number().int(),
+  b: z.number().int(),
+  /** Count the nails of `to` from its far end. */
+  reverse: z.boolean(),
+  /** First nail of `from` that is used. */
+  start: z.number().int().min(0),
+  /** Number of lines; `null` for as many as the rows allow. */
+  count: z.number().int().min(1).nullable(),
+  /** Use every `step`-th nail of `from`. */
+  step: z.number().int().min(1),
+});
+
+const threadSchema = z.strictObject({
+  id,
+  name: z.string(),
+  /** One colour, or several that take turns from one repetition to the next. */
+  colors: z.array(color).min(1),
+  visible: z.boolean(),
+  parts: z.array(partSchema),
+});
+
+export const stringArtSchema = z.strictObject({
+  rows: z.array(rowSchema),
+  threads: z.array(threadSchema),
+  /** The rows and threads are repeated this many times around the layer origin. */
+  repeat: z.number().int().min(1).max(72),
+  /** Nails closer together than this are reported, in mm. */
+  minSpacing: finite.min(0),
+  /** Used for the extra thread length that goes around each nail, in mm. */
+  nailDiameter: positive,
+  /** Colour of the board in the preview. */
+  background: color,
+});
+
+export type StringArtParams = z.infer<typeof stringArtSchema>;
+export type Curve = z.infer<typeof curveSchema>;
+export type NailSpacing = z.infer<typeof spacingSchema>;
+export type Row = z.infer<typeof rowSchema>;
+export type ThreadPart = z.infer<typeof partSchema>;
+export type Thread = z.infer<typeof threadSchema>;
+
+export function parseStringArtParams(raw: unknown): StringArtParams | null {
+  const result = stringArtSchema.safeParse(raw);
+  return result.success ? result.data : null;
+}
