@@ -1,4 +1,5 @@
 import { distance, type Polyline, type Vec2 } from '../geometry/index.ts';
+import { startNear } from './optimize.ts';
 
 function first(polyline: Polyline): Vec2 {
   return polyline.points[0] as Vec2;
@@ -16,8 +17,8 @@ function reversed(polyline: Polyline): Polyline {
 /**
  * Reorder polylines to shorten positioning moves: starting at `start`, always
  * continue with the polyline whose start is closest (greedy nearest
- * neighbour). Open polylines may be followed backwards. Closed polylines
- * keep their start point.
+ * neighbour). Open polylines may be followed backwards. A closed polyline
+ * is chosen by its start point and then entered at its nearest point.
  *
  * This is a heuristic, not an optimal tour, but it removes most of the
  * wasted travel of an arbitrary drawing order.
@@ -47,7 +48,7 @@ export function orderPolylines(polylines: readonly Polyline[], start: Vec2): Pol
       }
     });
     const [picked] = remaining.splice(bestIndex, 1) as [Polyline];
-    const next = bestReversed ? reversed(picked) : picked;
+    const next = bestReversed ? reversed(picked) : startNear(picked, position);
     ordered.push(next);
     position = last(next);
   }

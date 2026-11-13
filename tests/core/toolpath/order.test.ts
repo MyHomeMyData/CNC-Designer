@@ -25,10 +25,23 @@ describe('orderPolylines', () => {
     ]);
   });
 
-  it('never reverses a closed path', () => {
-    const closed = line(30, 12, true);
+  it('never reverses a closed path but enters it at its nearest point', () => {
+    const closed: Polyline = {
+      points: [
+        { x: 30, y: 0 },
+        { x: 30, y: 10 },
+        { x: 12, y: 10 },
+        { x: 12, y: 0 },
+      ],
+      closed: true,
+    };
     const [ordered] = orderPolylines([closed], { x: 0, y: 0 });
-    expect(ordered?.points.map((q) => q.x)).toEqual([30, 12]);
+    expect(ordered?.points.map((q) => [q.x, q.y])).toEqual([
+      [12, 0],
+      [30, 0],
+      [30, 10],
+      [12, 10],
+    ]);
   });
 
   it('drops empty paths and keeps all others', () => {

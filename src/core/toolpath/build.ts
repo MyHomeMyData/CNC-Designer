@@ -1,6 +1,7 @@
 import type { Geometry, Polyline, Vec2, Vec3 } from '../geometry/index.ts';
 import { EPSILON } from '../machine/index.ts';
 import { passLevels, type Operation } from '../operations/index.ts';
+import { joinPolylines, simplifyPolyline } from './optimize.ts';
 import { orderPoints, orderPolylines } from './order.ts';
 import type { Move, Toolpath, ToolpathSection } from './types.ts';
 
@@ -10,8 +11,9 @@ export interface Job {
   readonly geometry: Geometry;
   readonly operation: Operation;
   /**
-   * Reorder paths and points to shorten positioning moves. Switch off when
-   * the order of the design matters.
+   * Shorten positioning moves: join paths whose ends meet, reorder paths and
+   * points, and enter closed paths at the nearest point. Switch off when the
+   * order or direction of the design matters.
    */
   readonly optimizeOrder: boolean;
 }
@@ -155,9 +157,11 @@ export function buildToolpath(jobs: readonly Job[], end: ProgramEnd = { kind: 's
     const reference: Vec2 = position ?? { x: 0, y: 0 };
     if (operation.kind === 'follow') {
       const polylines = job.optimizeOrder
-        ? orderPolylines(geometry.polylines, reference)
+        ? orderPolylines(joinPolylines(geometry.polylines), reference)
         : geometry.polylines;
-      for (const polyline of polylines) followPolyline(builder, polyline, operation);
+      for (const polyline of polylines) {
+        followPolyline(builder, simplifyPolyline(polyline), operation);
+      }
     } else {
       const points = job.optimizeOrder ? orderPoints(geometry.points, reference) : geometry.points;
       for (const point of points) drillPoint(builder, point, operation);
