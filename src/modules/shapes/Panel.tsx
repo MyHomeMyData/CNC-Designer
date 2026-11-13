@@ -1,6 +1,7 @@
 import { NumberField, SelectField } from '../../ui/fields.tsx';
 import type { PanelProps } from '../types.ts';
 import {
+  effectiveCornerRadius,
   parseShapesParams,
   SHAPE_DEFAULTS,
   type ShapeKind,
@@ -59,6 +60,17 @@ export function ShapesPanel({ params, onChange }: PanelProps<ShapesParams>) {
             value={params.height}
             onCommit={(height) => change({ ...params, height })}
           />
+          <NumberField
+            label="Corner radius"
+            unit="mm"
+            value={params.cornerRadius}
+            onCommit={(cornerRadius) => change({ ...params, cornerRadius })}
+          />
+          {effectiveCornerRadius(params) < params.cornerRadius && (
+            <p className="hint">
+              Limited to {effectiveCornerRadius(params)} mm, half of the shorter side.
+            </p>
+          )}
         </>
       )}
       {params.shape === 'circle' && (

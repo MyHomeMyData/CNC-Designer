@@ -7,6 +7,16 @@ export interface SceneLayer {
   readonly id: string;
   /** Geometry in program coordinates, or `null` if it cannot be computed. */
   readonly geometry: Geometry | null;
+  /** Handles of the layer's own shape, in program coordinates. */
+  readonly handles: readonly ShapeHandle[];
+}
+
+/** A handle on the shape itself, e.g. on an edge of a rectangle. */
+export interface ShapeHandle {
+  readonly id: string;
+  readonly at: Vec2;
+  /** Direction in which it can be pulled. */
+  readonly axis: Vec2;
 }
 
 export interface Scene {
@@ -19,6 +29,8 @@ export interface Scene {
   readonly selectedLayerId: string | null;
   /** Box around the selected layer, drawn with handles; `null` for none. */
   readonly selectionBox: BBox2 | null;
+  /** Handles on the shape of the selected layer. */
+  readonly shapeHandles: readonly ShapeHandle[];
   readonly toolpaths: readonly Toolpath[];
   readonly showResult: boolean;
   readonly showTravel: boolean;
@@ -224,18 +236,34 @@ function drawOrigin(ctx: Ctx, view: View, palette: Palette): void {
 const ROTATE_HANDLE_OFFSET = 26;
 const HANDLE_SIZE = 9;
 
-export interface Handle {
-  readonly kind: 'scale' | 'rotate';
-  /** Position on screen. */
-  readonly screen: Vec2;
-  /** For `scale`: the opposite corner, which stays in place. For `rotate`: the centre. */
-  readonly pivot: Vec2;
-  /** For `scale`: the corner the handle sits on, in program coordinates. */
-  readonly corner: Vec2;
-}
+export type Handle =
+  | {
+      readonly kind: 'scale' | 'rotate';
+      /** Position on screen. */
+      readonly screen: Vec2;
+      /** For `scale`: the opposite corner, which stays in place. For `rotate`: the centre. */
+      readonly pivot: Vec2;
+      /** For `scale`: the corner the handle sits on, in program coordinates. */
+      readonly corner: Vec2;
+    }
+  | {
+      /** A handle on the shape itself, which changes the shape, not its placement. */
+      readonly kind: 'shape';
+      readonly screen: Vec2;
+      readonly id: string;
+      /** Direction in which it can be pulled, in program coordinates. */
+      readonly axis: Vec2;
+    };
 
-/** The handles of a selection box: one per corner for scaling, one on top for rotating. */
-export function selectionHandles(view: View, box: BBox2): Handle[] {
+/**
+ * The handles of a selection: one per corner of the box for scaling, one on
+ * top for rotating, and those of the shape itself.
+ */
+export function selectionHandles(
+  view: View,
+  box: BBox2,
+  shapeHandles: readonly ShapeHandle[] = [],
+): Handle[] {
   const corners: Vec2[] = [
     { x: box.minX, y: box.minY },
     { x: box.maxX, y: box.minY },
@@ -256,10 +284,19 @@ export function selectionHandles(view: View, box: BBox2): Handle[] {
     pivot: center,
     corner: center,
   });
+  for (const { id, at, axis } of shapeHandles) {
+    handles.push({ kind: 'shape', screen: toScreen(view, at), id, axis });
+  }
   return handles;
 }
 
-function drawSelection(ctx: Ctx, view: View, box: BBox2, palette: Palette): void {
+function drawSelection(
+  ctx: Ctx,
+  view: View,
+  box: BBox2,
+  shapeHandles: readonly ShapeHandle[],
+  palette: Palette,
+): void {
   rectPath(ctx, view, { min: box.minX, max: box.maxX }, { min: box.minY, max: box.maxY });
   ctx.strokeStyle = palette.selected;
   ctx.lineWidth = 1;
@@ -267,7 +304,7 @@ function drawSelection(ctx: Ctx, view: View, box: BBox2, palette: Palette): void
   ctx.stroke();
   ctx.setLineDash([]);
   ctx.fillStyle = palette.background;
-  for (const handle of selectionHandles(view, box)) {
+  for (const handle of selectionHandles(view, box, shapeHandles)) {
     const { x, y } = handle.screen;
     ctx.beginPath();
     if (handle.kind === 'rotate') {
@@ -316,7 +353,7 @@ export function drawScene(ctx: Ctx, scene: Scene, palette: Palette): void {
   ctx.setLineDash([8, 5]);
   ctx.stroke();
 
-  if (scene.selectionBox) drawSelection(ctx, view, scene.selectionBox, palette);
+  if (scene.selectionBox) drawSelection(ctx, view, scene.selectionBox, scene.shapeHandles, palette);
 
   drawOrigin(ctx, view, palette);
 }

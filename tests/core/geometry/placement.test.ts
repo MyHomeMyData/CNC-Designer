@@ -11,6 +11,7 @@ import {
   rotateAbout,
   scaleAbout,
   transformToPlacement,
+  vectorToLocal,
   type BBox2,
   type Geometry,
   type Placement,
@@ -146,5 +147,20 @@ describe('placement tools', () => {
   it('leaves the placement alone when there is no room', () => {
     const target = { minX: 0, minY: 0, maxX: 10, maxY: 10 };
     expect(fitInto(start, placedBox(start), target, 5)).toBe(start);
+  });
+
+  it('expresses a movement in the coordinates of the layer', () => {
+    const turned: Placement = { x: 50, y: 70, rotation: 90, scaleX: 2, scaleY: -1 };
+    // going up in the program is going along X of a layer turned by 90 degrees
+    const local = vectorToLocal(turned, { x: 0, y: 10 });
+    expect(local.x).toBeCloseTo(5, 9);
+    expect(local.y).toBeCloseTo(0, 9);
+    // the other way round: the placement turns the result back
+    const t = placementToTransform(turned);
+    const vector = { x: 3, y: -4 };
+    const back = vectorToLocal(turned, vector);
+    const tip = { x: t.a * back.x + t.c * back.y, y: t.b * back.x + t.d * back.y };
+    expect(tip.x).toBeCloseTo(vector.x, 9);
+    expect(tip.y).toBeCloseTo(vector.y, 9);
   });
 });

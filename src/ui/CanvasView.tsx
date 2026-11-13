@@ -31,7 +31,9 @@ interface CanvasViewProps {
 export type LayerDrag =
   | { readonly kind: 'move'; readonly dx: number; readonly dy: number }
   | { readonly kind: 'scale'; readonly pivot: Vec2; readonly factor: number }
-  | { readonly kind: 'rotate'; readonly pivot: Vec2; readonly degrees: number };
+  | { readonly kind: 'rotate'; readonly pivot: Vec2; readonly degrees: number }
+  /** A handle of the shape was pulled by (dx, dy) in program coordinates. */
+  | { readonly kind: 'shape'; readonly handleId: string; readonly dx: number; readonly dy: number };
 
 /** A handle is hit within this many pixels of its centre. */
 const HANDLE_PIXELS = 9;
@@ -66,6 +68,13 @@ function pointerPixel(event: { clientX: number; clientY: number }, element: Elem
   return { x: event.clientX - rect.left, y: event.clientY - rect.top };
 }
 
+function handleCursor(handle: Handle): string {
+  if (handle.kind === 'shape') {
+    return Math.abs(handle.axis.x) >= Math.abs(handle.axis.y) ? 'ew-resize' : 'ns-resize';
+  }
+  return handle.kind === 'rotate' ? 'crosshair' : 'nesw-resize';
+}
+
 export function CanvasView(props: CanvasViewProps) {
   const { workArea, workpiece, layers, selectedLayerId, toolpaths, onSelect, onDragLayer } = props;
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -88,10 +97,15 @@ export function CanvasView(props: CanvasViewProps) {
     id: number;
   } | null>(null);
 
-  const selectionBox = useMemo(() => {
-    const selected = layers.find((layer) => layer.id === selectedLayerId);
-    return selected?.geometry ? bboxOfGeometry(selected.geometry) : null;
-  }, [layers, selectedLayerId]);
+  const selected = useMemo(
+    () => layers.find((layer) => layer.id === selectedLayerId),
+    [layers, selectedLayerId],
+  );
+  const selectionBox = useMemo(
+    () => (selected?.geometry ? bboxOfGeometry(selected.geometry) : null),
+    [selected],
+  );
+  const shapeHandles = useMemo(() => selected?.handles ?? [], [selected]);
 
   const fitted = useMemo(
     () =>
@@ -155,6 +169,7 @@ export function CanvasView(props: CanvasViewProps) {
         layers,
         selectedLayerId,
         selectionBox,
+        shapeHandles,
         toolpaths,
         showResult,
         showTravel,
@@ -169,6 +184,7 @@ export function CanvasView(props: CanvasViewProps) {
     layers,
     selectedLayerId,
     selectionBox,
+    shapeHandles,
     toolpaths,
     showResult,
     showTravel,
@@ -177,7 +193,7 @@ export function CanvasView(props: CanvasViewProps) {
   function handleAt(pixel: Vec2): Handle | null {
     if (!selectionBox) return null;
     return (
-      selectionHandles(view, selectionBox).find(
+      selectionHandles(view, selectionBox, shapeHandles).find(
         (handle) =>
           Math.hypot(handle.screen.x - pixel.x, handle.screen.y - pixel.y) <= HANDLE_PIXELS,
       ) ?? null
@@ -201,7 +217,7 @@ export function CanvasView(props: CanvasViewProps) {
 
   function onPointerDown(event: PointerEvent<HTMLCanvasElement>): void {
     const pixel = pointerPixel(event, event.currentTarget);
-    // Pulling a handle scales or rotates the selected layer, dragging a layer
+    // Pulling a handle scales, rotates or reshapes the selected layer, dragging a layer
     // moves it, and dragging empty space moves the view.
     const handle = handleAt(pixel);
     const layerId = handle ? selectedLayerId : layerAt(pixel);
@@ -216,22 +232,26 @@ export function CanvasView(props: CanvasViewProps) {
     const current = drag.current;
     if (!current) {
       const handle = handleAt(pixel);
-      setCursor(
-        handle?.kind === 'rotate'
-          ? 'crosshair'
-          : handle
-            ? 'nesw-resize'
-            : layerAt(pixel) !== null
-              ? 'move'
-              : 'grab',
-      );
+      setCursor(handle ? handleCursor(handle) : layerAt(pixel) !== null ? 'move' : 'grab');
       return;
     }
     if (Math.hypot(pixel.x - current.start.x, pixel.y - current.start.y) > CLICK_PIXELS) {
       current.moved = true;
     }
-    if (current.moved && current.layerId && current.handle) {
-      const { kind, pivot, corner } = current.handle;
+    const handle = current.handle;
+    if (current.moved && current.layerId && handle?.kind === 'shape') {
+      onDragLayer(
+        current.layerId,
+        {
+          kind: 'shape',
+          handleId: handle.id,
+          dx: (pixel.x - current.start.x) / view.scale,
+          dy: (current.start.y - pixel.y) / view.scale,
+        },
+        current.id,
+      );
+    } else if (current.moved && current.layerId && handle && handle.kind !== 'shape') {
+      const { kind, pivot, corner } = handle;
       const world = toWorld(view, pixel);
       if (kind === 'scale') {
         const reference = Math.hypot(corner.x - pivot.x, corner.y - pivot.y);

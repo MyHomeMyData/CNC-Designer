@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
-import type { Geometry } from '../core/geometry/index.ts';
+import type { Geometry, Vec2 } from '../core/geometry/index.ts';
 import type { GeometryResolver } from '../core/project/index.ts';
 import { shapesModule } from './shapes/index.ts';
 import { svgModule } from './svg/index.ts';
 import { textModule } from './text/index.ts';
-import type { DesignModule } from './types.ts';
+import type { DesignModule, HandleDrag, ModuleHandle } from './types.ts';
 
 /**
  * A design module as the app sees it: with the type of its parameters
@@ -20,6 +20,10 @@ export interface RegisteredModule {
   layerName(params: unknown): string;
   /** Geometry for the given parameters, or `null` if they are unusable. */
   generate(params: unknown): Geometry | null;
+  /** Handles on the shape itself, in the layer's own coordinates. */
+  handles(params: unknown): readonly ModuleHandle[];
+  /** Parameters after a handle was pulled to `to`; `null` for no change. */
+  dragHandle(params: unknown, handleId: string, to: Vec2): HandleDrag<unknown> | null;
   /** Controls for the given parameters, or `null` if they are unusable. */
   renderPanel(params: unknown, onChange: (params: unknown, mergeKey?: string) => void): ReactNode;
 }
@@ -46,6 +50,14 @@ function register<P>(module: DesignModule<P>): RegisteredModule {
       if (typeof raw !== 'object' || raw === null) return compute(raw);
       if (!cache.has(raw)) cache.set(raw, compute(raw));
       return cache.get(raw) ?? null;
+    },
+    handles(raw) {
+      const params = module.parseParams(raw);
+      return (params !== null && module.handles?.(params)) || [];
+    },
+    dragHandle(raw, handleId, to) {
+      const params = module.parseParams(raw);
+      return (params !== null && module.dragHandle?.(params, handleId, to)) || null;
     },
     renderPanel(raw, onChange) {
       const params = module.parseParams(raw);

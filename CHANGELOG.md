@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Rectangle: handles in the middle of the edges; pulling one moves that
+  edge and changes the width or the height
+- Rectangle: optional rounded corners with one radius for all four
 - Text: the position of a text layer now refers to the baseline of the last
   line instead of the first, so it marks the lower edge of the whole block.
   Multi-line texts in existing projects move up by the height of the lines

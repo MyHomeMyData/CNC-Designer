@@ -106,11 +106,11 @@ test('move, scale and rotate a layer with the mouse', async ({ page }) => {
   const positionX = page.getByLabel('Position X', { exact: true });
   const positionY = page.getByLabel('Position Y', { exact: true });
 
-  // drag the lower edge: the layer moves by (200, 200)
-  await page.mouse.move(at.x(50), at.y(0));
+  // drag the lower edge away from its middle: the layer moves by (200, 200)
+  await page.mouse.move(at.x(20), at.y(0));
   await page.mouse.down();
-  await page.mouse.move(at.x(150), at.y(100), { steps: 5 });
-  await page.mouse.move(at.x(250), at.y(200), { steps: 5 });
+  await page.mouse.move(at.x(120), at.y(100), { steps: 5 });
+  await page.mouse.move(at.x(220), at.y(200), { steps: 5 });
   await page.mouse.up();
   await expect(positionX).toHaveValue('200');
   await expect(positionY).toHaveValue('200');
@@ -147,4 +147,44 @@ test('export the design as SVG', async ({ page }) => {
   expect(file.name).toBe('Untitled.svg');
   expect(file.text).toContain('viewBox="0 -600 800 600"');
   expect(file.text).toContain('<path d="M0 0 L100 0 L100 -60 L0 -60 Z"/>');
+});
+
+test('pull the edges of a rectangle and round its corners', async ({ page }) => {
+  await openApp(page);
+  await addLayer(page, 'Basic shape'); // rectangle 100 × 60 at the zero point
+  const at = await canvasMapper(page);
+  const width = page.getByLabel('Width', { exact: true });
+  const height = page.getByLabel('Height', { exact: true });
+  const positionX = page.getByLabel('Position X', { exact: true });
+  const positionY = page.getByLabel('Position Y', { exact: true });
+
+  // right edge: only the width changes, the rectangle stays where it is
+  await page.mouse.move(at.x(100), at.y(30));
+  await page.mouse.down();
+  await page.mouse.move(at.x(200), at.y(80), { steps: 8 });
+  await page.mouse.up();
+  await expect(width).toHaveValue('200');
+  await expect(height).toHaveValue('60');
+  await expect(positionX).toHaveValue('0');
+  await expect(positionY).toHaveValue('0');
+
+  // lower edge: the height changes and the upper edge stays, so the origin moves
+  await page.mouse.move(at.x(100), at.y(0));
+  await page.mouse.down();
+  await page.mouse.move(at.x(100), at.y(20), { steps: 8 });
+  await page.mouse.up();
+  await expect(height).toHaveValue('40');
+  await expect(positionY).toHaveValue('20');
+  await expect(width).toHaveValue('200');
+
+  // one drag is one undo step
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(height).toHaveValue('60');
+  await expect(positionY).toHaveValue('0');
+
+  // a radius that is too large is limited, and the panel says so
+  await setNumber(page, 'Corner radius', 10);
+  await expect(page.getByText('Limited to')).toHaveCount(0);
+  await setNumber(page, 'Corner radius', 500);
+  await expect(page.getByText('Limited to 30 mm')).toBeVisible();
 });

@@ -59,6 +59,17 @@ checkbox hides a layer (hidden layers are not exported), ✕ deletes it.
   directly, turn by 90°, mirror, centre the layer on the workpiece or make
   it fill the workpiece.
 
+### Basic shape
+
+A **rectangle** has a square handle in the middle of each edge. Pull one to
+move that edge: the opposite edge stays where it is, and _Width_ or _Height_
+changes. Unlike the corner handles, this changes the rectangle itself and
+not its scale.
+
+_Corner radius_ rounds all four corners with the same radius; 0 gives sharp
+corners. The radius is limited to half of the shorter side, and the size of
+the rectangle stays the same.
+
 ### SVG import
 
 Outlines of all visible shapes are imported: paths, rectangles, circles,

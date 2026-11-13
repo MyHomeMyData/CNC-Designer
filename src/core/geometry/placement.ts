@@ -92,6 +92,20 @@ export function keepInPlace(before: Placement, after: Placement, local: Vec2): P
   return moveBy(after, was.x - is.x, was.y - is.y);
 }
 
+/**
+ * A direction or distance given in program coordinates, expressed in the
+ * layer's own coordinates: the placement's rotation and scale undone.
+ */
+export function vectorToLocal(placement: Placement, vector: Vec2): Vec2 {
+  const angle = (-placement.rotation * Math.PI) / 180;
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  return {
+    x: (vector.x * cos - vector.y * sin) / placement.scaleX,
+    y: (vector.x * sin + vector.y * cos) / placement.scaleY,
+  };
+}
+
 export function moveBy(placement: Placement, dx: number, dy: number): Placement {
   return { ...placement, x: placement.x + dx, y: placement.y + dy };
 }

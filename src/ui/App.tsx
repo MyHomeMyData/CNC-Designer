@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { rotateAbout, scaleAbout, type Placement } from '../core/geometry/index.ts';
+import {
+  applyToPoint,
+  placementToTransform,
+  rotateAbout,
+  scaleAbout,
+  vectorToLocal,
+  type Placement,
+} from '../core/geometry/index.ts';
 import type { Issue } from '../core/issues.ts';
 import { validateWorkArea, validateWorkpiece } from '../core/machine/index.ts';
 import {
@@ -13,7 +20,7 @@ import {
   updateLayer,
 } from '../core/project/index.ts';
 import { APP_NAME, APP_VERSION } from '../core/version.ts';
-import { resolveLayerGeometry } from '../modules/registry.tsx';
+import { findModule, resolveLayerGeometry } from '../modules/registry.tsx';
 import { CanvasView, type LayerDrag } from './CanvasView.tsx';
 import { downloadText, pickTextFile } from './files.ts';
 import { IssueList } from './panels/IssueList.tsx';
@@ -57,7 +64,21 @@ export function App() {
     () =>
       project.layers
         .filter((layer) => layer.visible)
-        .map((layer) => ({ id: layer.id, geometry: placedGeometry(layer, resolveLayerGeometry) })),
+        .map((layer) => {
+          const transform = placementToTransform(layer.placement);
+          const origin = applyToPoint(transform, { x: 0, y: 0 });
+          const handles = (findModule(layer.moduleId)?.handles(layer.params) ?? []).map(
+            ({ id, at, axis }) => {
+              const tip = applyToPoint(transform, axis);
+              return {
+                id,
+                at: applyToPoint(transform, at),
+                axis: { x: tip.x - origin.x, y: tip.y - origin.y },
+              };
+            },
+          );
+          return { id: layer.id, geometry: placedGeometry(layer, resolveLayerGeometry), handles };
+        }),
     [project.layers],
   );
   const setupIssues = useMemo(
@@ -101,17 +122,39 @@ export function App() {
 
   /** Round to a tenth of a millimetre, so dragging gives tidy positions. */
   const tidy = (value: number) => Math.round(value * 10) / 10;
-  const dragStart = useRef<{ dragId: number; placement: Placement } | null>(null);
+  const dragStart = useRef<{ dragId: number; placement: Placement; params: unknown } | null>(null);
 
   function dragLayer(layerId: string, change: LayerDrag, dragId: number): void {
     const layer = store.getState().project.layers.find((candidate) => candidate.id === layerId);
     if (!layer) return;
     if (dragStart.current?.dragId !== dragId) {
-      dragStart.current = { dragId, placement: layer.placement };
+      dragStart.current = { dragId, placement: layer.placement, params: layer.params };
     }
     // Every step is computed from the placement at the start of the drag,
     // so rounding does not add up.
     const began = dragStart.current.placement;
+    const key = `drag-${dragId}`;
+    if (change.kind === 'shape') {
+      // Pulling a handle of the shape changes its parameters. The pull is
+      // translated into the layer's own coordinates first.
+      const module = findModule(layer.moduleId);
+      const params = dragStart.current.params;
+      const handle = module?.handles(params).find(({ id }) => id === change.handleId);
+      if (!module || !handle) return;
+      const pull = vectorToLocal(began, { x: change.dx, y: change.dy });
+      const to = { x: handle.at.x + pull.x, y: handle.at.y + pull.y };
+      const result = module.dragHandle(params, change.handleId, to);
+      if (!result) return;
+      // The origin moves along when the lower or the left edge was pulled.
+      const origin = applyToPoint(placementToTransform(began), result.shift);
+      const placement = { ...began, x: origin.x, y: origin.y };
+      store.edit(
+        (current) => updateLayer(current, layerId, { params: result.params, placement }),
+        key,
+        dragId,
+      );
+      return;
+    }
     const placement =
       change.kind === 'move'
         ? { ...began, x: tidy(began.x + change.dx), y: tidy(began.y + change.dy) }
@@ -119,7 +162,7 @@ export function App() {
           ? scaleAbout(began, change.pivot, change.factor)
           : rotateAbout(began, change.pivot, change.degrees);
     // All edits of one drag share a key and a time, so they form one undo step.
-    store.edit((current) => updateLayer(current, layerId, { placement }), `drag-${dragId}`, dragId);
+    store.edit((current) => updateLayer(current, layerId, { placement }), key, dragId);
   }
 
   function newProject(): void {

@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import type { Geometry } from '../core/geometry/index.ts';
+import type { Geometry, Vec2 } from '../core/geometry/index.ts';
 
 export interface PanelProps<P> {
   readonly params: P;
@@ -8,6 +8,26 @@ export interface PanelProps<P> {
    * (e.g. typing in one text field) become a single undo step.
    */
   readonly onChange: (params: P, mergeKey?: string) => void;
+}
+
+/** A handle on the shape itself that changes a parameter when pulled. */
+export interface ModuleHandle {
+  /** Stable within one module, e.g. "right". */
+  readonly id: string;
+  /** Position in the layer's own coordinates. */
+  readonly at: Vec2;
+  /** Direction in which pulling has an effect, in the layer's own coordinates. */
+  readonly axis: Vec2;
+}
+
+/** Result of pulling a handle. */
+export interface HandleDrag<P> {
+  readonly params: P;
+  /**
+   * How far the layer origin has to move, in the layer's own coordinates,
+   * so that the part of the shape that was not pulled stays where it is.
+   */
+  readonly shift: Vec2;
 }
 
 /**
@@ -37,6 +57,13 @@ export interface DesignModule<P> {
   parseParams(raw: unknown): P | null;
   /** Compute the geometry in the layer's own coordinates. Must be a pure function. */
   generate(params: P): Geometry;
+  /** Handles shown on the selected layer. Modules without this have none. */
+  handles?(params: P): readonly ModuleHandle[];
+  /**
+   * Parameters after the handle `handleId` was pulled to the point `to`
+   * (layer coordinates), starting from `params`; `null` for no change.
+   */
+  dragHandle?(params: P, handleId: string, to: Vec2): HandleDrag<P> | null;
   /** Controls for editing the parameters. */
   readonly Panel: ComponentType<PanelProps<P>>;
 }
