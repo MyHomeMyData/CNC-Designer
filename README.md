@@ -21,6 +21,9 @@ Each use case is a module on top of a shared core:
 3. Import of [Sandify](https://sandify.org) patterns, with Z handling added
 4. Painting with a brush instead of a cutter
 
+See the [user guide](docs/user-guide.md) for how to use the app and the
+[changelog](CHANGELOG.md) for what is new.
+
 ## How it works
 
 - A project consists of **layers**. Each layer is created by a design module
@@ -94,6 +97,7 @@ Requirements: Node.js 22.12 or newer (see `.nvmrc`).
 npm install
 npm run dev      # development server at http://localhost:8090
 npm run check    # type check, lint, format check and tests
+npm run test:e2e # browser tests (once: npx playwright install chromium)
 npm run build    # production build in dist/
 ```
 
@@ -108,6 +112,8 @@ Source layout:
   for the interface, `src/modules/registry.tsx` for the list)
 - `src/ui/` – the React user interface
 - `tests/` – automated tests
+- `e2e/` – browser tests of the main workflows
+- `docs/` – [user guide](docs/user-guide.md)
 - `deploy/` – files for running the app as a service
 
 This project is developed with the help of an AI assistant (Claude Code by

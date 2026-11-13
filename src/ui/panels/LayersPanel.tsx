@@ -118,7 +118,7 @@ export function LayersPanel({ project, selectedLayerId }: LayersPanelProps) {
           ))}
         </ul>
         {project.layers.length === 0 && <p className="hint">No layers yet.</p>}
-        <div className="row">
+        <div className="row layer-add">
           <select value={moduleId} onChange={(event) => setModuleId(event.target.value)}>
             {MODULES.map((module) => (
               <option key={module.id} value={module.id}>
