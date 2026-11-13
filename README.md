@@ -34,7 +34,7 @@ See the [user guide](docs/user-guide.md) for how to use the app and the
 - Layers with the same tool end up in one **G-code file**; tools are changed
   by hand between files.
 - Projects are saved to and opened from your own computer. Nothing is stored
-  on the server.
+  on the server. The browser only remembers the snap grid setting.
 
 ### Coordinates, zero point and work area
 

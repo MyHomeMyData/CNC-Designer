@@ -62,8 +62,10 @@ export interface DesignModule<P> {
   /**
    * Parameters after the handle `handleId` was pulled to the point `to`
    * (layer coordinates), starting from `params`; `null` for no change.
+   * With `snapLength`, the length that changes is to be a multiple of it;
+   * this is given when `to` itself could not be put on the snap grid.
    */
-  dragHandle?(params: P, handleId: string, to: Vec2): HandleDrag<P> | null;
+  dragHandle?(params: P, handleId: string, to: Vec2, snapLength?: number): HandleDrag<P> | null;
   /** Controls for editing the parameters. */
   readonly Panel: ComponentType<PanelProps<P>>;
 }

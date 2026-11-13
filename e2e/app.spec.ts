@@ -188,3 +188,52 @@ test('pull the edges of a rectangle and round its corners', async ({ page }) => 
   await setNumber(page, 'Corner radius', 500);
   await expect(page.getByText('Limited to 30 mm')).toBeVisible();
 });
+
+test('snap to a grid while dragging, and remember the setting', async ({ page }) => {
+  await openApp(page);
+  await addLayer(page, 'Basic shape'); // rectangle 100 × 60 at the zero point
+  const at = await canvasMapper(page);
+  const positionX = page.getByLabel('Position X', { exact: true });
+  const positionY = page.getByLabel('Position Y', { exact: true });
+  const snap = page.getByLabel('Snap', { exact: true });
+  const grid = page.getByLabel('Snap grid', { exact: true });
+  const drag = async (fromX: number, fromY: number, toX: number, toY: number, alt = false) => {
+    await page.mouse.move(at.x(fromX), at.y(fromY));
+    await page.mouse.down();
+    if (alt) await page.keyboard.down('Alt');
+    await page.mouse.move(at.x(toX), at.y(toY), { steps: 6 });
+    await page.mouse.up();
+    if (alt) await page.keyboard.up('Alt');
+  };
+
+  // the grid starts at 10 mm: a move by (33, 58) ends at (30, 60)
+  await expect(snap).toBeChecked();
+  await expect(grid).toHaveValue('10');
+  await drag(20, 0, 53, 58);
+  await expect(positionX).toHaveValue('30');
+  await expect(positionY).toHaveValue('60');
+
+  // a wider grid, typed with a fraction: whole millimetres only
+  await setNumber(page, 'Snap grid', '24,6');
+  await expect(grid).toHaveValue('25');
+  await drag(50, 60, 100, 100); // origin from (30, 60) to about (80, 100)
+  await expect(positionX).toHaveValue('75');
+  await expect(positionY).toHaveValue('100');
+
+  // the right edge, at 175, lands on a grid line: 200
+  await drag(175, 130, 207, 130);
+  await expect(page.getByLabel('Width', { exact: true })).toHaveValue('125');
+
+  // Alt moves freely
+  await drag(95, 100, 108, 100, true);
+  await expect(positionX).not.toHaveValue('75');
+  await expect(positionX).not.toHaveValue('100');
+
+  // the setting survives a reload, also when switched off
+  await snap.uncheck();
+  await expect(grid).toBeDisabled();
+  page.on('dialog', (dialog) => void dialog.accept());
+  await page.reload();
+  await expect(page.getByLabel('Snap', { exact: true })).not.toBeChecked();
+  await expect(page.getByLabel('Snap grid', { exact: true })).toHaveValue('25');
+});

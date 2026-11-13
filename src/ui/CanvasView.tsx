@@ -10,7 +10,9 @@ import {
   type SceneLayer,
 } from './canvas/draw.ts';
 import { fitView, pan, toWorld, zoomAt, type View } from './canvas/view.ts';
-import { CheckField } from './fields.tsx';
+import type { LayerDrag } from './drag.ts';
+import { CheckField, NumberField } from './fields.tsx';
+import { loadSnapSettings, saveSnapSettings, snapStep, type SnapSettings } from './snap.ts';
 
 interface CanvasViewProps {
   readonly workArea: WorkArea;
@@ -22,18 +24,15 @@ interface CanvasViewProps {
   /**
    * Called while a layer is dragged or one of its handles is pulled, with
    * the total change since the drag began. `dragId` is the same for all
-   * calls of one drag.
+   * calls of one drag, `snap` is the width of the snap grid in mm or `null`.
    */
-  readonly onDragLayer: (layerId: string, change: LayerDrag, dragId: number) => void;
+  readonly onDragLayer: (
+    layerId: string,
+    change: LayerDrag,
+    dragId: number,
+    snap: number | null,
+  ) => void;
 }
-
-/** What a drag does to a layer, relative to its placement when the drag began. */
-export type LayerDrag =
-  | { readonly kind: 'move'; readonly dx: number; readonly dy: number }
-  | { readonly kind: 'scale'; readonly pivot: Vec2; readonly factor: number }
-  | { readonly kind: 'rotate'; readonly pivot: Vec2; readonly degrees: number }
-  /** A handle of the shape was pulled by (dx, dy) in program coordinates. */
-  | { readonly kind: 'shape'; readonly handleId: string; readonly dx: number; readonly dy: number };
 
 /** A handle is hit within this many pixels of its centre. */
 const HANDLE_PIXELS = 9;
@@ -86,6 +85,12 @@ export function CanvasView(props: CanvasViewProps) {
   const [showTravel, setShowTravel] = useState(true);
   const [pointer, setPointer] = useState<Vec2 | null>(null);
   const [cursor, setCursor] = useState('grab');
+  const [snap, setSnap] = useState<SnapSettings>(loadSnapSettings);
+
+  function changeSnap(next: SnapSettings): void {
+    setSnap(next);
+    saveSnapSettings(next);
+  }
   const drag = useRef<{
     start: Vec2;
     last: Vec2;
@@ -239,6 +244,8 @@ export function CanvasView(props: CanvasViewProps) {
       current.moved = true;
     }
     const handle = current.handle;
+    // Holding Alt switches the snap grid off for the moment.
+    const grid = snap.enabled && !event.altKey ? snap.step : null;
     if (current.moved && current.layerId && handle?.kind === 'shape') {
       onDragLayer(
         current.layerId,
@@ -249,6 +256,7 @@ export function CanvasView(props: CanvasViewProps) {
           dy: (current.start.y - pixel.y) / view.scale,
         },
         current.id,
+        grid,
       );
     } else if (current.moved && current.layerId && handle && handle.kind !== 'shape') {
       const { kind, pivot, corner } = handle;
@@ -257,7 +265,7 @@ export function CanvasView(props: CanvasViewProps) {
         const reference = Math.hypot(corner.x - pivot.x, corner.y - pivot.y);
         const factor = Math.hypot(world.x - pivot.x, world.y - pivot.y) / reference;
         if (reference > 0 && factor > 0.001) {
-          onDragLayer(current.layerId, { kind, pivot, factor }, current.id);
+          onDragLayer(current.layerId, { kind, pivot, factor }, current.id, grid);
         }
       } else {
         const began = toWorld(view, current.start);
@@ -266,7 +274,7 @@ export function CanvasView(props: CanvasViewProps) {
         degrees = event.shiftKey
           ? Math.round(degrees / ROTATION_SNAP) * ROTATION_SNAP
           : Math.round(degrees * 10) / 10;
-        onDragLayer(current.layerId, { kind, pivot, degrees }, current.id);
+        onDragLayer(current.layerId, { kind, pivot, degrees }, current.id, grid);
       }
     } else if (current.moved && current.layerId) {
       onDragLayer(
@@ -277,6 +285,7 @@ export function CanvasView(props: CanvasViewProps) {
           dy: (current.start.y - pixel.y) / view.scale,
         },
         current.id,
+        grid,
       );
     } else if (current.moved) {
       const dx = pixel.x - current.last.x;
@@ -311,6 +320,23 @@ export function CanvasView(props: CanvasViewProps) {
         </button>
         <CheckField label="Result preview" checked={showResult} onChange={setShowResult} />
         <CheckField label="Positioning moves" checked={showTravel} onChange={setShowTravel} />
+        <span
+          className="snap"
+          title="Moving a layer and pulling an edge stop at multiples of this distance. Hold Alt to move freely."
+        >
+          <CheckField
+            label="Snap"
+            checked={snap.enabled}
+            onChange={(enabled) => changeSnap({ ...snap, enabled })}
+          />
+          <NumberField
+            label="Snap grid"
+            unit="mm"
+            value={snap.step}
+            disabled={!snap.enabled}
+            onCommit={(step) => changeSnap({ ...snap, step: snapStep(step) })}
+          />
+        </span>
         <span className="status-spacer" />
         <span className="coordinates">
           {pointer ? `X ${pointer.x.toFixed(1)}  Y ${pointer.y.toFixed(1)} mm` : ''}

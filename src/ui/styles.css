@@ -411,3 +411,26 @@ button:disabled {
   width: 100%;
   overflow-wrap: anywhere;
 }
+
+/* Snap grid controls in the status bar: compact, the label is not shown. */
+.snap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.snap .field {
+  display: flex;
+}
+
+.snap .field label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.snap .field input {
+  width: 4em;
+}

@@ -23,7 +23,12 @@ export interface RegisteredModule {
   /** Handles on the shape itself, in the layer's own coordinates. */
   handles(params: unknown): readonly ModuleHandle[];
   /** Parameters after a handle was pulled to `to`; `null` for no change. */
-  dragHandle(params: unknown, handleId: string, to: Vec2): HandleDrag<unknown> | null;
+  dragHandle(
+    params: unknown,
+    handleId: string,
+    to: Vec2,
+    snapLength?: number,
+  ): HandleDrag<unknown> | null;
   /** Controls for the given parameters, or `null` if they are unusable. */
   renderPanel(params: unknown, onChange: (params: unknown, mergeKey?: string) => void): ReactNode;
 }
@@ -55,9 +60,9 @@ function register<P>(module: DesignModule<P>): RegisteredModule {
       const params = module.parseParams(raw);
       return (params !== null && module.handles?.(params)) || [];
     },
-    dragHandle(raw, handleId, to) {
+    dragHandle(raw, handleId, to, snapLength) {
       const params = module.parseParams(raw);
-      return (params !== null && module.dragHandle?.(params, handleId, to)) || null;
+      return (params !== null && module.dragHandle?.(params, handleId, to, snapLength)) || null;
     },
     renderPanel(raw, onChange) {
       const params = module.parseParams(raw);

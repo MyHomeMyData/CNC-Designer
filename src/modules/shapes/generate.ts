@@ -127,15 +127,20 @@ export function shapeHandles(params: ShapesParams): readonly ModuleHandle[] {
 /**
  * Pull an edge of a rectangle to `to`: the edge follows, the opposite edge
  * stays, so the two edges of the other direction change their length.
+ * With `snapLength`, that length becomes a multiple of it.
  */
 export function dragShapeHandle(
   params: ShapesParams,
   handleId: string,
   to: Vec2,
+  snapLength?: number,
 ): HandleDrag<ShapesParams> | null {
   if (params.shape !== 'rectangle') return null;
   const { width, height } = params;
-  const side = (length: number) => Math.max(MIN_SIDE, tidy(length));
+  const side = (length: number) =>
+    snapLength === undefined
+      ? Math.max(MIN_SIDE, tidy(length))
+      : Math.max(1, Math.round(length / snapLength)) * snapLength;
   switch (handleId) {
     case 'right':
       return { params: { ...params, width: side(to.x) }, shift: { x: 0, y: 0 } };

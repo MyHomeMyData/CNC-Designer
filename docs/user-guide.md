@@ -55,6 +55,15 @@ checkbox hides a layer (hidden layers are not exported), ✕ deletes it.
   moves the view; the mouse wheel zooms; _Fit_ shows the whole work area.
 - The selected layer has **handles**: the squares at the corners scale it,
   the circle on top rotates it (hold Shift for steps of 15°).
+- With **Snap** switched on (below the drawing), dragging stops at
+  multiples of the grid width next to it, 10 mm to begin with; any whole
+  number of millimetres can be set. A moved layer is put on the grid with
+  its origin, the point that _Position X/Y_ show. A pulled edge of a
+  rectangle lands on a grid line; if the rectangle is turned at an angle,
+  its side becomes a multiple of the grid width instead. Scaling and
+  rotating are not snapped, and typed numbers are never changed. Hold
+  **Alt** to drag freely for once. The setting is remembered by the
+  browser, not stored in the project.
 - Under _Placement_ you can type position, rotation and scale, set the size
   directly, turn by 90°, mirror, centre the layer on the workpiece or make
   it fill the workpiece.
