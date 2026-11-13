@@ -4,6 +4,7 @@ import type { Issue } from '../core/issues.ts';
 import { validateWorkArea, validateWorkpiece } from '../core/machine/index.ts';
 import {
   createDefaultProject,
+  exportSvg,
   fileNamePart,
   generateProject,
   parseProject,
@@ -149,6 +150,14 @@ export function App() {
     store.markSaved();
   }
 
+  function saveDrawing(): void {
+    downloadText(
+      fileNamePart(project.name) + '.svg',
+      exportSvg(project, resolveLayerGeometry),
+      'image/svg+xml',
+    );
+  }
+
   return (
     <div className="app">
       <header className="toolbar">
@@ -163,6 +172,13 @@ export function App() {
         </button>
         <button type="button" onClick={saveProject}>
           Save
+        </button>
+        <button
+          type="button"
+          onClick={saveDrawing}
+          title="Save the design as an SVG drawing, e.g. for FreeCAD"
+        >
+          Export SVG
         </button>
         <span className="toolbar-gap" />
         <button type="button" disabled={!canUndo} onClick={() => store.undo()} title="Ctrl+Z">
