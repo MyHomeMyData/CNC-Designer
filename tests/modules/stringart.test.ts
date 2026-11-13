@@ -9,7 +9,7 @@ import {
 } from '../../src/modules/stringart/model.ts';
 import { cosDeg, layoutNails, rowNails, sinDeg } from '../../src/modules/stringart/nails.ts';
 import { generateStringArt, previewStringArt } from '../../src/modules/stringart/compute.ts';
-import { TEMPLATES } from '../../src/modules/stringart/templates.ts';
+import { applyTemplate, starGeometry, TEMPLATES } from '../../src/modules/stringart/templates.ts';
 import { computeStringArt, partLines, partRoutes } from '../../src/modules/stringart/threads.ts';
 
 const segment = (id: string, x2: number, y2: number, count: number): Row => ({
@@ -49,6 +49,7 @@ const thread = (parts: ThreadPart[], colors = ['#00aacc']): Thread => ({
 });
 
 const design = (changes: Partial<StringArtParams> = {}): StringArtParams => ({
+  template: null,
   rows: [],
   threads: [],
   repeat: 1,
@@ -440,6 +441,74 @@ describe('templates', () => {
     // per quarter 25 new nails on the arc and 24 on the half axis, plus the centre
     expect(art.layout.nails).toHaveLength(4 * 25 + 4 * 24 + 1);
     expect(art.threads.map((t) => t.name)).toEqual(['Star', 'Rim']);
+  });
+});
+
+describe('template parameters', () => {
+  const star = TEMPLATES[1]?.create();
+  if (!star || star.template?.id !== 'parabola-star') throw new Error('template missing');
+  const template = star.template;
+
+  it('star: triangles of the given height that join on an inner circle', () => {
+    const geometry = starGeometry({ ...template, points: 8, outer: 200, height: 100 });
+    expect(geometry.inner).toBeCloseTo(100 / Math.cos(Math.PI / 8), 9);
+    const halfBase = geometry.inner * Math.sin(Math.PI / 8);
+    expect(geometry.leg).toBeCloseTo(Math.hypot(halfBase, 100), 9);
+    expect(geometry.opening).toBeCloseTo((2 * Math.atan(halfBase / 100) * 180) / Math.PI, 9);
+
+    const art = computeStringArt(applyTemplate(star, { ...template, points: 6, height: 80 }));
+    const radii = art.layout.nails.map((nail) => Math.hypot(nail.x, nail.y));
+    expect(Math.max(...radii)).toBeCloseTo(200, 2);
+    // the corners are the nails nearest to the centre, on the inner circle
+    expect(Math.min(...radii)).toBeCloseTo(120 / Math.cos(Math.PI / 6), 2);
+    // 6 tips, 6 corners and 17 more nails on each of the 12 legs
+    expect(art.layout.nails).toHaveLength(12 + 12 * 17);
+    expect(art.issues).toEqual([]);
+    for (const strung of art.threads) expect(strung.joins).toEqual([]);
+  });
+
+  it('star with the full height: spokes from the centre', () => {
+    const geometry = starGeometry({ ...template, height: template.outer });
+    expect(geometry.inner).toBeCloseTo(0, 9);
+    expect(geometry.opening).toBeCloseTo(0, 9);
+  });
+
+  it('a change keeps names, colours, visibility and the other settings', () => {
+    const changed: StringArtParams = {
+      ...star,
+      background: '#ffffff',
+      threads: star.threads.map((thread, index) =>
+        index === 0 ? { ...thread, name: 'Mine', colors: ['#123456'], visible: false } : thread,
+      ),
+    };
+    const next = applyTemplate(changed, { ...template, nails: 15 });
+    expect(next.template).toEqual({ ...template, nails: 15 });
+    expect(next.background).toBe('#ffffff');
+    expect(next.threads[0]).toMatchObject({ name: 'Mine', colors: ['#123456'], visible: false });
+    expect(next.rows.map((row) => row.nails)).toEqual([
+      { mode: 'count', count: 15 },
+      { mode: 'count', count: 15 },
+    ]);
+    // another template starts with its own threads
+    const circle = TEMPLATES[0]?.defaults;
+    if (!circle) throw new Error('template missing');
+    expect(applyTemplate(changed, circle).threads.map((thread) => thread.name)).toEqual([
+      'Star',
+      'Rim',
+    ]);
+  });
+
+  it('files without a template are designs of their own', () => {
+    const old = Object.fromEntries(Object.entries(star).filter(([key]) => key !== 'template'));
+    expect(parseStringArtParams(old)?.template).toBeNull();
+    expect(parseStringArtParams({ ...star, template: { ...template, height: -1 } })).toBeNull();
+  });
+
+  it('cardioid: the factor sets the rule', () => {
+    const params = TEMPLATES[2]?.create();
+    if (!params?.template) throw new Error('template missing');
+    const next = applyTemplate(params, { ...params.template, factor: 3 } as typeof params.template);
+    expect(next.threads[0]?.parts[0]?.a).toBe(3);
   });
 });
 

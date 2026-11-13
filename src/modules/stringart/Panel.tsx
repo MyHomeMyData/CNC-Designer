@@ -8,11 +8,12 @@ import {
   type Curve,
   type Row,
   type StringArtParams,
+  type Template,
   type Thread,
   type ThreadPart,
 } from './model.ts';
 import { rowNails } from './nails.ts';
-import { newPart, TEMPLATES } from './templates.ts';
+import { applyTemplate, newPart, starGeometry, TEMPLATES } from './templates.ts';
 
 type CurveKind = Curve['kind'];
 
@@ -433,6 +434,92 @@ function ThreadEditor(props: {
   );
 }
 
+/** The few parameters of a template; every change builds the design anew. */
+function TemplateFields(props: {
+  readonly template: Template;
+  readonly onChange: (template: Template) => void;
+}) {
+  const { template, onChange } = props;
+  const whole = Math.round;
+  switch (template.id) {
+    case 'circle-axes':
+      return (
+        <>
+          <NumberField
+            label="Radius"
+            unit="mm"
+            value={template.radius}
+            onCommit={(radius) => onChange({ ...template, radius })}
+          />
+          <NumberField
+            label="Nails per row"
+            title="On each half axis and on each quarter of the circle"
+            value={template.nails}
+            onCommit={(nails) => onChange({ ...template, nails: whole(nails) })}
+          />
+        </>
+      );
+    case 'parabola-star': {
+      const { inner, opening, leg } = starGeometry(template);
+      return (
+        <>
+          <NumberField
+            label="Triangles"
+            title="Triangles that point outwards and join without a gap"
+            value={template.points}
+            onCommit={(points) => onChange({ ...template, points: whole(points) })}
+          />
+          <NumberField
+            label="Outer radius"
+            unit="mm"
+            title="Distance of the tips from the centre"
+            value={template.outer}
+            onCommit={(outer) => onChange({ ...template, outer })}
+          />
+          <NumberField
+            label="Triangle height"
+            unit="mm"
+            title="From the base of a triangle to its tip; smaller than the outer radius"
+            value={template.height}
+            onCommit={(height) => onChange({ ...template, height })}
+          />
+          <NumberField
+            label="Nails per leg"
+            value={template.nails}
+            onCommit={(nails) => onChange({ ...template, nails: whole(nails) })}
+          />
+          <p className="hint">
+            Opening angle {opening.toFixed(1)}°, legs {leg.toFixed(1)} mm, inner circle of radius{' '}
+            {inner.toFixed(1)} mm.
+          </p>
+        </>
+      );
+    }
+    case 'cardioid':
+      return (
+        <>
+          <NumberField
+            label="Radius"
+            unit="mm"
+            value={template.radius}
+            onCommit={(radius) => onChange({ ...template, radius })}
+          />
+          <NumberField
+            label="Nails"
+            value={template.nails}
+            onCommit={(nails) => onChange({ ...template, nails: whole(nails) })}
+          />
+          <NumberField
+            label="Factor"
+            title="Nail i goes to nail factor × i"
+            value={template.factor}
+            onCommit={(factor) => onChange({ ...template, factor: whole(factor) })}
+          />
+        </>
+      );
+  }
+}
+
 export function StringArtPanel({ params, onChange }: PanelProps<StringArtParams>) {
   const templateId = useId();
   /** Apply a change only if the result is valid, e.g. not a negative radius. */
@@ -440,7 +527,12 @@ export function StringArtPanel({ params, onChange }: PanelProps<StringArtParams>
     const valid = parseStringArtParams(next);
     if (valid) onChange(valid, mergeKey);
   }
+  /** A change to rows, rules or repetitions: the design no longer follows its template. */
+  function changeByHand(next: StringArtParams): void {
+    change({ ...next, template: null });
+  }
   const art = stringArtOf(params);
+  const template = params.template;
 
   return (
     <>
@@ -449,27 +541,27 @@ export function StringArtPanel({ params, onChange }: PanelProps<StringArtParams>
         <span className="field-input">
           <select
             id={templateId}
-            value=""
+            value={template?.id ?? ''}
             onChange={(event) => {
-              const template = TEMPLATES.find((candidate) => candidate.id === event.target.value);
-              if (template) onChange(template.create());
+              const chosen = TEMPLATES.find((candidate) => candidate.id === event.target.value);
+              if (chosen) change(applyTemplate(params, chosen.defaults));
             }}
           >
-            <option value="">Replace by…</option>
-            {TEMPLATES.map((template) => (
-              <option key={template.id} value={template.id}>
-                {template.name}
+            {!template && <option value="">Own design</option>}
+            {TEMPLATES.map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>
+                {candidate.name}
               </option>
             ))}
           </select>
         </span>
       </div>
-      <NumberField
-        label="Repetitions"
-        title="Rows and threads are repeated this many times around the layer position"
-        value={params.repeat}
-        onCommit={(repeat) => change({ ...params, repeat: Math.round(repeat) })}
-      />
+      {template && (
+        <TemplateFields
+          template={template}
+          onChange={(next) => change(applyTemplate(params, next))}
+        />
+      )}
       <ColorField
         label="Board colour"
         value={params.background}
@@ -491,12 +583,26 @@ export function StringArtPanel({ params, onChange }: PanelProps<StringArtParams>
       />
 
       <h3 className="sub-heading">Rows of nails</h3>
+      {template && (
+        <p className="hint">
+          Rows, repetitions and thread rules come from the template. Changing them here turns this
+          into a design of your own; the template settings above then no longer apply.
+        </p>
+      )}
+      <NumberField
+        label="Repetitions"
+        title="Rows and threads are repeated this many times around the layer position"
+        value={params.repeat}
+        onCommit={(repeat) => changeByHand({ ...params, repeat: Math.round(repeat) })}
+      />
       {params.rows.map((row, index) => (
         <RowEditor
           key={row.id}
           row={row}
-          onChange={(next) => change({ ...params, rows: replaceAt(params.rows, index, next) })}
-          onRemove={() => change({ ...params, rows: removeAt(params.rows, index) })}
+          onChange={(next) =>
+            changeByHand({ ...params, rows: replaceAt(params.rows, index, next) })
+          }
+          onRemove={() => changeByHand({ ...params, rows: removeAt(params.rows, index) })}
         />
       ))}
       <button
@@ -506,7 +612,7 @@ export function StringArtPanel({ params, onChange }: PanelProps<StringArtParams>
             'row',
             params.rows.map((row) => row.id),
           );
-          change({
+          changeByHand({
             ...params,
             rows: [
               ...params.rows,
@@ -530,10 +636,14 @@ export function StringArtPanel({ params, onChange }: PanelProps<StringArtParams>
           thread={thread}
           rows={params.rows}
           repeat={params.repeat}
-          onChange={(next, mergeKey) =>
-            change({ ...params, threads: replaceAt(params.threads, index, next) }, mergeKey)
-          }
-          onRemove={() => change({ ...params, threads: removeAt(params.threads, index) })}
+          onChange={(next, mergeKey) => {
+            const threads = replaceAt(params.threads, index, next);
+            // Name, colours and visibility are free; the rules belong to the template.
+            if (next.parts === thread.parts) {
+              change({ ...params, threads }, mergeKey);
+            } else changeByHand({ ...params, threads });
+          }}
+          onRemove={() => changeByHand({ ...params, threads: removeAt(params.threads, index) })}
         />
       ))}
       <button
@@ -545,7 +655,7 @@ export function StringArtPanel({ params, onChange }: PanelProps<StringArtParams>
             params.threads.map((thread) => thread.id),
           );
           const first = params.rows[0]?.id ?? '';
-          change({
+          changeByHand({
             ...params,
             threads: [
               ...params.threads,

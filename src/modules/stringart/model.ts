@@ -88,7 +88,41 @@ const threadSchema = z.strictObject({
   parts: z.array(partSchema),
 });
 
+/**
+ * A template and its own few parameters. While a design carries one, its
+ * rows, threads and repetitions are those the template builds from them.
+ */
+const templateSchema = z.discriminatedUnion('id', [
+  /** A circle and its two axes. `nails` per half axis and per quarter of the circle. */
+  z.strictObject({
+    id: z.literal('circle-axes'),
+    radius: positive,
+    nails: z.number().int().min(2).max(500),
+  }),
+  /**
+   * A star of isosceles triangles that point outwards and join without a
+   * gap. `outer` is the distance of the tips from the centre, `height` the
+   * height of each triangle, `nails` the number of nails per leg.
+   */
+  z.strictObject({
+    id: z.literal('parabola-star'),
+    points: z.number().int().min(3).max(72),
+    outer: positive,
+    height: positive,
+    nails: z.number().int().min(2).max(500),
+  }),
+  /** A times table on a circle: nail i goes to nail `factor` × i. */
+  z.strictObject({
+    id: z.literal('cardioid'),
+    radius: positive,
+    nails: z.number().int().min(3).max(2000),
+    factor: z.number().int().min(2).max(100),
+  }),
+]);
+
 export const stringArtSchema = z.strictObject({
+  /** `null` for a design of its own, changed by hand. Absent in older files. */
+  template: templateSchema.nullable().default(null),
   rows: z.array(rowSchema),
   threads: z.array(threadSchema),
   /** The rows and threads are repeated this many times around the layer origin. */
@@ -102,6 +136,7 @@ export const stringArtSchema = z.strictObject({
 });
 
 export type StringArtParams = z.infer<typeof stringArtSchema>;
+export type Template = z.infer<typeof templateSchema>;
 export type Curve = z.infer<typeof curveSchema>;
 export type NailSpacing = z.infer<typeof spacingSchema>;
 export type Row = z.infer<typeof rowSchema>;

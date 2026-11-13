@@ -1,4 +1,4 @@
-import type { Row, StringArtParams, ThreadPart } from './model.ts';
+import type { Row, StringArtParams, Template, Thread, ThreadPart } from './model.ts';
 
 const BOARD = '#1c1c1e';
 const BLUE = '#1f9fc4';
@@ -25,13 +25,18 @@ export function newPart(from: string, to: string, changes: Partial<ThreadPart> =
   };
 }
 
+type Built = Pick<StringArtParams, 'rows' | 'threads' | 'repeat'>;
+
+function thread(id: string, name: string, color: string, parts: ThreadPart[]): Thread {
+  return { id, name, colors: [color], visible: true, parts };
+}
+
 /**
  * A circle with two axes, built from one quarter that is repeated four
  * times: half an axis and a quarter of the circle.
  */
-function circleWithAxes(): StringArtParams {
-  const radius = 200;
-  const nails = 26;
+function circleWithAxes(template: Extract<Template, { id: 'circle-axes' }>): Built {
+  const { radius, nails } = template;
   const rows: Row[] = [
     {
       id: 'axis',
@@ -47,125 +52,156 @@ function circleWithAxes(): StringArtParams {
     },
   ];
   return {
-    ...base,
     rows,
     repeat: 4,
     threads: [
-      {
-        id: 'star',
-        name: 'Star',
-        colors: [BLUE],
-        visible: true,
-        // from each half axis to the next one, running against each other
-        parts: [newPart('axis', 'axis', { toCopy: 1 })],
-      },
-      {
-        id: 'rim',
-        name: 'Rim',
-        colors: [ORANGE],
-        visible: true,
-        parts: [
-          // Both rows start at the tip of the half axis: the first line lies
-          // on the axis, the last one joins this tip with the next.
-          newPart('axis', 'arc', { reverse: false }),
-          // The same from the next half axis, towards which the arc runs.
-          newPart('arc', 'axis', { toCopy: 1 }),
-        ],
-      },
+      // from each half axis to the next one, running against each other
+      thread('star', 'Star', BLUE, [newPart('axis', 'axis', { toCopy: 1 })]),
+      thread('rim', 'Rim', ORANGE, [
+        // Both rows start at the tip of the half axis: the first line lies
+        // on the axis, the last one joins this tip with the next.
+        newPart('axis', 'arc', { reverse: false }),
+        // The same from the next half axis, towards which the arc runs.
+        newPart('arc', 'axis', { toCopy: 1 }),
+      ]),
     ],
   };
 }
 
+/** What follows from the parameters of the star, in mm and degrees. */
+export function starGeometry(template: Extract<Template, { id: 'parabola-star' }>): {
+  /** Distance of the inner corners, where two triangles meet, from the centre. */
+  readonly inner: number;
+  /** Angle between the two legs at the tip. */
+  readonly opening: number;
+  /** Length of a leg. */
+  readonly leg: number;
+} {
+  const { points, outer, height } = template;
+  const half = Math.PI / points;
+  // The base of a triangle is a chord of the inner circle, `outer - height`
+  // away from the centre.
+  const inner = (outer - height) / Math.cos(half);
+  const halfBase = inner * Math.sin(half);
+  return {
+    inner,
+    opening: (2 * Math.atan2(halfBase, height) * 180) / Math.PI,
+    leg: Math.hypot(halfBase, height),
+  };
+}
+
 /**
- * An eight-pointed star outline. Each side of a point is a row of nails;
- * parabolas fill the inner corners in one colour and the points in another.
+ * A star outline of isosceles triangles. Each leg is a row of nails;
+ * parabolas fill the inner corners in one colour and the tips in another.
  */
-function parabolaStar(): StringArtParams {
-  const outer = 200;
-  const inner = 110;
-  const points = 8;
+function parabolaStar(template: Extract<Template, { id: 'parabola-star' }>): Built {
+  const { points, outer, nails } = template;
+  const { inner } = starGeometry(template);
   const half = 180 / points;
   const at = (radius: number, degrees: number) => ({
-    x: Math.round(radius * Math.cos((degrees * Math.PI) / 180) * 1000) / 1000,
-    y: Math.round(radius * Math.sin((degrees * Math.PI) / 180) * 1000) / 1000,
+    x: Math.round(radius * Math.cos((degrees * Math.PI) / 180) * 1000) / 1000 + 0,
+    y: Math.round(radius * Math.sin((degrees * Math.PI) / 180) * 1000) / 1000 + 0,
   });
   const tip = at(outer, 0);
   const corner = at(inner, half);
   const nextTip = at(outer, 2 * half);
-  // An odd number: each part then ends on the nail where the next one begins.
-  const nails = 19;
   const rows: Row[] = [
     {
       id: 'down',
-      name: 'Point to corner',
+      name: 'Tip to corner',
       curve: { kind: 'segment', x1: tip.x, y1: tip.y, x2: corner.x, y2: corner.y },
       nails: { mode: 'count', count: nails },
     },
     {
       id: 'up',
-      name: 'Corner to point',
+      name: 'Corner to tip',
       curve: { kind: 'segment', x1: corner.x, y1: corner.y, x2: nextTip.x, y2: nextTip.y },
       nails: { mode: 'count', count: nails },
     },
   ];
   return {
-    ...base,
     rows,
     repeat: points,
     threads: [
-      {
-        id: 'corners',
-        name: 'Inner corners',
-        colors: [TURQUOISE],
-        visible: true,
-        // The rows meet in the corner: the nail next to the point goes to
-        // the nail next to the corner, and so on.
-        parts: [newPart('down', 'up', { reverse: false })],
-      },
-      {
-        id: 'points',
-        name: 'Points',
-        colors: [ROSE],
-        visible: true,
-        parts: [newPart('up', 'down', { toCopy: 1, reverse: false })],
-      },
+      // The rows meet in the corner: the nail next to the tip goes to the
+      // nail next to the corner, and so on.
+      thread('corners', 'Inner corners', TURQUOISE, [newPart('down', 'up', { reverse: false })]),
+      thread('points', 'Tips', ROSE, [newPart('up', 'down', { toCopy: 1, reverse: false })]),
     ],
   };
 }
 
-/** The two times table on a circle: its lines wrap a heart-shaped curve. */
-function cardioid(): StringArtParams {
+/** A times table on a circle; with the factor 2 its lines wrap a heart-shaped curve. */
+function cardioid(template: Extract<Template, { id: 'cardioid' }>): Built {
+  const { radius, nails, factor } = template;
   return {
-    ...base,
     rows: [
       {
         id: 'circle',
         name: 'Circle',
-        curve: { kind: 'arc', cx: 0, cy: 0, rx: 200, ry: 200, start: 0, end: 360 },
-        nails: { mode: 'count', count: 120 },
+        curve: { kind: 'arc', cx: 0, cy: 0, rx: radius, ry: radius, start: 0, end: 360 },
+        nails: { mode: 'count', count: nails },
       },
     ],
     repeat: 1,
     threads: [
-      {
-        id: 'heart',
-        name: 'Times two',
-        colors: [ORANGE],
-        visible: true,
-        parts: [newPart('circle', 'circle', { a: 2, reverse: false })],
-      },
+      thread('heart', 'Times table', ORANGE, [
+        newPart('circle', 'circle', { a: factor, reverse: false }),
+      ]),
     ],
   };
 }
 
-export const TEMPLATES: readonly {
-  readonly id: string;
-  readonly name: string;
-  readonly create: () => StringArtParams;
-}[] = [
-  { id: 'circle-axes', name: 'Circle with axes', create: circleWithAxes },
-  { id: 'parabola-star', name: 'Parabola star', create: parabolaStar },
-  { id: 'cardioid', name: 'Cardioid', create: cardioid },
-];
+function build(template: Template): Built {
+  switch (template.id) {
+    case 'circle-axes':
+      return circleWithAxes(template);
+    case 'parabola-star':
+      return parabolaStar(template);
+    case 'cardioid':
+      return cardioid(template);
+  }
+}
 
-export const DEFAULT_STRING_ART = circleWithAxes;
+/**
+ * The design with rows, threads and repetitions built anew from `template`.
+ * Names, colours and visibility of threads the design already has are kept, and
+ * so are the settings that do not belong to the template.
+ */
+export function applyTemplate(params: StringArtParams, template: Template): StringArtParams {
+  const built = build(template);
+  const same = params.template?.id === template.id;
+  return {
+    ...params,
+    ...built,
+    template,
+    threads: built.threads.map((fresh) => {
+      const old = same ? params.threads.find((candidate) => candidate.id === fresh.id) : undefined;
+      return old ? { ...fresh, name: old.name, colors: old.colors, visible: old.visible } : fresh;
+    }),
+  };
+}
+
+function create(template: Template): StringArtParams {
+  return { ...base, template, ...build(template) };
+}
+
+export const TEMPLATES: readonly {
+  readonly id: Template['id'];
+  readonly name: string;
+  readonly defaults: Template;
+  readonly create: () => StringArtParams;
+}[] = (
+  [
+    { name: 'Circle with axes', defaults: { id: 'circle-axes', radius: 200, nails: 26 } },
+    {
+      name: 'Parabola star',
+      // An odd number of nails: each part then ends on the nail where the next one begins.
+      defaults: { id: 'parabola-star', points: 8, outer: 200, height: 100, nails: 19 },
+    },
+    { name: 'Cardioid', defaults: { id: 'cardioid', radius: 200, nails: 120, factor: 2 } },
+  ] as const
+).map((entry) => ({ ...entry, id: entry.defaults.id, create: () => create(entry.defaults) }));
+
+export const DEFAULT_STRING_ART = (): StringArtParams =>
+  create({ id: 'circle-axes', radius: 200, nails: 26 });

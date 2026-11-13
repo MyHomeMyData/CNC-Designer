@@ -254,6 +254,18 @@ test('design string art from a template and export the drilling program', async 
   await page.getByRole('button', { name: 'Undo' }).click();
   await expect(page.getByText('197 nails to drill.')).toBeVisible();
 
+  // a template is changed by its own few parameters
+  await page.getByLabel('Template', { exact: true }).selectOption({ label: 'Parabola star' });
+  await expect(page.getByText('288 nails to drill.')).toBeVisible();
+  await setNumber(page, 'Triangles', 6);
+  await setNumber(page, 'Triangle height', 80);
+  await expect(page.getByText('216 nails to drill.')).toBeVisible();
+  await expect(page.getByText(/Opening angle [\d.]+°/)).toBeVisible();
+  // changing the repetitions by hand makes it a design of its own
+  await setNumber(page, 'Repetitions', 3);
+  await expect(page.getByLabel('Triangles', { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel('Template', { exact: true })).toHaveValue('');
+
   // another template replaces rows and threads
   await page.getByLabel('Template', { exact: true }).selectOption({ label: 'Cardioid' });
   await expect(page.getByText('120 nails to drill.')).toBeVisible();
