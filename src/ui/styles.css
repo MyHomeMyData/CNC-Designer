@@ -434,3 +434,8 @@ button:disabled {
 .snap .field input {
   width: 4em;
 }
+
+/* The labels in the status bar stay on one line when space gets tight. */
+.status-bar label {
+  white-space: nowrap;
+}
