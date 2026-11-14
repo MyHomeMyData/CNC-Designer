@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Checks and browser tests run on GitHub for every pull request and for
+  `main`
+
 ## 0.2.0 – 2026-11-14
 
 - String art: a new kind of layer. Rows of nails on lines, circles,
