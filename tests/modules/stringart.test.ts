@@ -422,6 +422,7 @@ describe('templates', () => {
     expect(TEMPLATES.map((template) => template.id)).toEqual([
       'circle-axes',
       'parabola-star',
+      'spokes-tangents',
       'cardioid',
     ]);
     for (const template of TEMPLATES) {
@@ -430,6 +431,8 @@ describe('templates', () => {
       const art = computeStringArt(params);
       expect(art.issues, template.id).toEqual([]);
       expect(art.threads.length, template.id).toBeGreaterThan(0);
+      // only the spokes cannot do without: the thread has to get from one spoke to the next
+      if (template.id === 'spokes-tangents') continue;
       for (const strung of art.threads) expect(strung.joins, template.id).toEqual([]);
     }
   });
@@ -504,10 +507,37 @@ describe('template parameters', () => {
     expect(parseStringArtParams({ ...star, template: { ...template, height: -1 } })).toBeNull();
   });
 
+  it('spokes and tangents: six spokes, six rows that touch a circle, two colours', () => {
+    const params = TEMPLATES.find((template) => template.id === 'spokes-tangents')?.create();
+    if (params?.template?.id !== 'spokes-tangents') throw new Error('template missing');
+    const { inner, outer, radius, length } = params.template;
+    const art = computeStringArt(params);
+    expect(art.issues).toEqual([]);
+    expect(art.layout.nails).toHaveLength(12 * 21);
+    const radii = art.layout.nails.map((nail) => Math.hypot(nail.x, nail.y));
+    expect(Math.min(...radii)).toBeCloseTo(inner, 2);
+    // the ends of the tangent rows are the nails furthest from the centre
+    expect(Math.max(...radii)).toBeCloseTo(Math.hypot(radius, length / 2), 2);
+    // the middle nail of the first tangent row touches the circle halfway between two spokes
+    const touch = { x: radius * Math.cos(Math.PI / 6), y: radius * Math.sin(Math.PI / 6) };
+    expect(
+      art.layout.nails.some((nail) => Math.hypot(nail.x - touch.x, nail.y - touch.y) < 0.01),
+    ).toBe(true);
+    expect(radii.filter((r) => Math.abs(r - outer) < 0.01)).toHaveLength(6);
+    // one thread per colour, three spokes each; it changes spokes twice, along the rim
+    expect(art.threads.map((strung) => strung.name)).toEqual(['Fans', 'Fans', 'Star']);
+    expect(art.threads.map((strung) => strung.color)).toEqual(['#35c4c0', '#f29c9c', '#35c4c0']);
+    expect(art.threads[2]?.joins).toEqual([]);
+    for (const strung of art.threads.slice(0, 2)) {
+      expect(strung.joins).toHaveLength(2);
+      for (const join of strung.joins) expect(join.length).toBeLessThan(80);
+    }
+  });
+
   it('cardioid: the factor sets the rule', () => {
-    const params = TEMPLATES[2]?.create();
-    if (!params?.template) throw new Error('template missing');
-    const next = applyTemplate(params, { ...params.template, factor: 3 } as typeof params.template);
+    const params = TEMPLATES.find((template) => template.id === 'cardioid')?.create();
+    if (params?.template?.id !== 'cardioid') throw new Error('template missing');
+    const next = applyTemplate(params, { ...params.template, factor: 3 });
     expect(next.threads[0]?.parts[0]?.a).toBe(3);
   });
 });

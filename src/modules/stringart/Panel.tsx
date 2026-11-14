@@ -495,6 +495,49 @@ function TemplateFields(props: {
         </>
       );
     }
+    case 'spokes-tangents':
+      return (
+        <>
+          <NumberField
+            label="Spokes"
+            title="Rows that point to the centre; between each two of them lies one tangent row. An even number lets two colours take turns."
+            value={template.count}
+            onCommit={(count) => onChange({ ...template, count: whole(count) })}
+          />
+          <NumberField
+            label="Spokes from"
+            unit="mm"
+            title="Distance of the innermost nail of a spoke from the centre"
+            value={template.inner}
+            onCommit={(inner) => onChange({ ...template, inner })}
+          />
+          <NumberField
+            label="Spokes to"
+            unit="mm"
+            title="Distance of the outermost nail of a spoke from the centre"
+            value={template.outer}
+            onCommit={(outer) => onChange({ ...template, outer })}
+          />
+          <NumberField
+            label="Tangent circle"
+            unit="mm"
+            title="Radius of the circle that the tangent rows touch in their middle"
+            value={template.radius}
+            onCommit={(radius) => onChange({ ...template, radius })}
+          />
+          <NumberField
+            label="Tangent length"
+            unit="mm"
+            value={template.length}
+            onCommit={(length) => onChange({ ...template, length })}
+          />
+          <NumberField
+            label="Nails per row"
+            value={template.nails}
+            onCommit={(nails) => onChange({ ...template, nails: whole(nails) })}
+          />
+        </>
+      );
     case 'cardioid':
       return (
         <>

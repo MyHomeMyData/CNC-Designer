@@ -131,6 +131,62 @@ function parabolaStar(template: Extract<Template, { id: 'parabola-star' }>): Bui
   };
 }
 
+/**
+ * Spokes and, halfway between them, rows that touch a circle. Every spoke
+ * is joined to the two rows next to it, with colours that take turns from
+ * spoke to spoke, and to the next spoke.
+ */
+function spokesAndTangents(template: Extract<Template, { id: 'spokes-tangents' }>): Built {
+  const { count, inner, outer, radius, length, nails } = template;
+  const half = Math.PI / count;
+  const round = (value: number) => Math.round(value * 1000) / 1000 + 0;
+  // The row touches the circle at the angle `half` and runs on in the
+  // direction of growing angles, from the end next to this spoke.
+  const end = (along: number) => ({
+    x: round(radius * Math.cos(half) - along * Math.sin(half)),
+    y: round(radius * Math.sin(half) + along * Math.cos(half)),
+  });
+  const near = end(-length / 2);
+  const far = end(length / 2);
+  const rows: Row[] = [
+    {
+      id: 'spoke',
+      name: 'Spoke',
+      curve: { kind: 'segment', x1: inner, y1: 0, x2: outer, y2: 0 },
+      nails: { mode: 'count', count: nails },
+    },
+    {
+      id: 'tangent',
+      name: 'Tangent',
+      curve: { kind: 'segment', x1: near.x, y1: near.y, x2: far.x, y2: far.y },
+      nails: { mode: 'count', count: nails },
+    },
+  ];
+  return {
+    rows,
+    repeat: count,
+    threads: [
+      {
+        id: 'fans',
+        name: 'Fans',
+        colors: [TURQUOISE, ROSE],
+        visible: true,
+        parts: [
+          // First the row of the repetition before this one, counted from
+          // its far end, which lies next to this spoke.
+          newPart('spoke', 'tangent', { toCopy: count - 1 }),
+          // Then the row on the other side: the inner end of the spoke goes
+          // to the near end of that row, the outer end to its far end.
+          newPart('spoke', 'tangent', { reverse: false }),
+        ],
+      },
+      // From each spoke to the next one, running against each other: these
+      // curves close the round holes towards the centre and leave a star there.
+      thread('star', 'Star', TURQUOISE, [newPart('spoke', 'spoke', { toCopy: 1 })]),
+    ],
+  };
+}
+
 /** A times table on a circle; with the factor 2 its lines wrap a heart-shaped curve. */
 function cardioid(template: Extract<Template, { id: 'cardioid' }>): Built {
   const { radius, nails, factor } = template;
@@ -158,6 +214,8 @@ function build(template: Template): Built {
       return circleWithAxes(template);
     case 'parabola-star':
       return parabolaStar(template);
+    case 'spokes-tangents':
+      return spokesAndTangents(template);
     case 'cardioid':
       return cardioid(template);
   }
@@ -198,6 +256,18 @@ export const TEMPLATES: readonly {
       name: 'Parabola star',
       // An odd number of nails: each part then ends on the nail where the next one begins.
       defaults: { id: 'parabola-star', points: 8, outer: 200, height: 100, nails: 19 },
+    },
+    {
+      name: 'Spokes and tangents',
+      defaults: {
+        id: 'spokes-tangents',
+        count: 6,
+        inner: 55,
+        outer: 185,
+        radius: 200,
+        length: 145,
+        nails: 21,
+      },
     },
     { name: 'Cardioid', defaults: { id: 'cardioid', radius: 200, nails: 120, factor: 2 } },
   ] as const

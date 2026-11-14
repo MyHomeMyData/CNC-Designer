@@ -111,6 +111,20 @@ const templateSchema = z.discriminatedUnion('id', [
     height: positive,
     nails: z.number().int().min(2).max(500),
   }),
+  /**
+   * Rows that point to the centre ("spokes", from `inner` to `outer` away
+   * from it) and, halfway between them, as many straight rows of the length
+   * `length` that touch a circle of the radius `radius` in their middle.
+   */
+  z.strictObject({
+    id: z.literal('spokes-tangents'),
+    count: z.number().int().min(3).max(72),
+    inner: positive,
+    outer: positive,
+    radius: positive,
+    length: positive,
+    nails: z.number().int().min(2).max(500),
+  }),
   /** A times table on a circle: nail i goes to nail `factor` × i. */
   z.strictObject({
     id: z.literal('cardioid'),
