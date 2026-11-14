@@ -365,6 +365,12 @@ function ThreadEditor(props: {
           checked={thread.visible}
           onChange={(visible) => onChange({ ...thread, visible })}
         />
+        <CheckField
+          label="Double: there and back"
+          title="Every part is strung there and back the same way: each line is two strands and the thread returns to the nail it started from"
+          checked={thread.double}
+          onChange={(double) => onChange({ ...thread, double })}
+        />
         {thread.colors.map((color, index) => (
           <ColorField
             key={index}
@@ -707,6 +713,7 @@ export function StringArtPanel({ params, onChange }: PanelProps<StringArtParams>
                 name: `Thread ${params.threads.length + 1}`,
                 colors: ['#e8e8e8'],
                 visible: true,
+                double: false,
                 parts: [newPart(first, params.rows[1]?.id ?? first)],
               },
             ],

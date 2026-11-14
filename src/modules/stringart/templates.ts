@@ -28,7 +28,7 @@ export function newPart(from: string, to: string, changes: Partial<ThreadPart> =
 type Built = Pick<StringArtParams, 'rows' | 'threads' | 'repeat'>;
 
 function thread(id: string, name: string, color: string, parts: ThreadPart[]): Thread {
-  return { id, name, colors: [color], visible: true, parts };
+  return { id, name, colors: [color], visible: true, double: false, parts };
 }
 
 /**
@@ -171,6 +171,7 @@ function spokesAndTangents(template: Extract<Template, { id: 'spokes-tangents' }
         name: 'Fans',
         colors: [TURQUOISE, ROSE],
         visible: true,
+        double: true,
         parts: [
           // First the row of the repetition before this one, counted from
           // its far end, which lies next to this spoke.
@@ -185,14 +186,15 @@ function spokesAndTangents(template: Extract<Template, { id: 'spokes-tangents' }
         // on both sides, running against each other. With the same from the
         // neighbours, in the other colour, each pair of spokes carries a
         // whole parabola: it closes the round holes towards the centre and
-        // leaves a star there. With an odd number of nails the line between
-        // the two middle nails is strung in both colours.
+        // leaves a star there. With an odd number of nails the middle nail
+        // belongs to the half that goes to the next spoke.
         id: 'star',
         name: 'Star',
         colors: [TURQUOISE, ROSE],
         visible: true,
+        double: true,
         parts: [
-          newPart('spoke', 'spoke', { toCopy: count - 1, count: Math.ceil(nails / 2) }),
+          newPart('spoke', 'spoke', { toCopy: count - 1, count: Math.floor(nails / 2) }),
           newPart('spoke', 'spoke', { toCopy: 1, count: Math.ceil(nails / 2) }),
         ],
       },
@@ -248,7 +250,9 @@ export function applyTemplate(params: StringArtParams, template: Template): Stri
     template,
     threads: built.threads.map((fresh) => {
       const old = same ? params.threads.find((candidate) => candidate.id === fresh.id) : undefined;
-      return old ? { ...fresh, name: old.name, colors: old.colors, visible: old.visible } : fresh;
+      return old
+        ? { ...fresh, name: old.name, colors: old.colors, visible: old.visible, double: old.double }
+        : fresh;
     }),
   };
 }

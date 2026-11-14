@@ -85,6 +85,12 @@ const threadSchema = z.strictObject({
   /** One colour, or several that take turns from one repetition to the next. */
   colors: z.array(color).min(1),
   visible: z.boolean(),
+  /**
+   * Every part is strung there and back again the same way, so each line
+   * is two strands and the thread returns to the nail it started from.
+   * Absent in older files.
+   */
+  double: z.boolean().default(false),
   parts: z.array(partSchema),
 });
 

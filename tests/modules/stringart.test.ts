@@ -45,6 +45,7 @@ const thread = (parts: ThreadPart[], colors = ['#00aacc']): Thread => ({
   name: 'Thread',
   colors,
   visible: true,
+  double: false,
   parts,
 });
 
@@ -532,14 +533,44 @@ describe('template parameters', () => {
       '#35c4c0',
       '#f29c9c',
     ]);
-    // the star: 3 spokes, to both sides, 11 lines each, in one run
-    for (const strung of art.threads.slice(2)) {
-      expect(strung.joins).toEqual([]);
-      expect(strung.route).toHaveLength(3 * 2 * 11 * 2 - 5);
+    const lines = (strung: (typeof art.threads)[number]) => {
+      const counts = new Map<string, number>();
+      for (let i = 1; i < strung.route.length; i++) {
+        const [a, b] = [strung.route[i - 1] as number, strung.route[i] as number].sort(
+          (x, y) => x - y,
+        );
+        counts.set(`${a}-${b}`, (counts.get(`${a}-${b}`) ?? 0) + 1);
+      }
+      return counts;
+    };
+    for (const strung of art.threads) {
+      // there and back: the thread ends where it began, and every step is
+      // made twice (steps along a row that two parts share: four times)
+      expect(strung.route[0]).toBe(strung.route[strung.route.length - 1]);
+      expect([...lines(strung).values()].every((times) => times % 2 === 0)).toBe(true);
     }
+    // the fans of the three spokes of one colour share no nail: the thread
+    // changes spokes twice, along the rim, there and back
     for (const strung of art.threads.slice(0, 2)) {
-      expect(strung.joins).toHaveLength(2);
+      expect(strung.joins).toHaveLength(4);
       for (const join of strung.joins) expect(join.length).toBeLessThan(80);
+    }
+    // the star hangs together and needs no such crossing
+    for (const strung of art.threads.slice(2)) expect(strung.joins).toEqual([]);
+    // between two spokes: 11 lines from the one, 10 from the other, none twice
+    const long = art.threads.slice(2).flatMap((strung) =>
+      [...lines(strung).keys()].filter((key) => {
+        const [a, b] = key.split('-').map(Number) as [number, number];
+        const p = art.layout.nails[a];
+        const q = art.layout.nails[b];
+        // steps along a spoke are 6.5 mm, the lines are much longer
+        return p && q ? Math.hypot(p.x - q.x, p.y - q.y) > 20 : false;
+      }),
+    );
+    expect(long).toHaveLength(6 * 21);
+    expect(new Set(long).size).toBe(6 * 21);
+    for (const strung of art.threads.slice(2)) {
+      for (const [key, times] of lines(strung)) if (long.includes(key)) expect(times).toBe(2);
     }
   });
 

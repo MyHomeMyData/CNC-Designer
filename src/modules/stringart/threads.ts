@@ -154,6 +154,15 @@ function stringThread(
     }
   }
   if (pieces.length === 0) return null;
+  if (thread.double) {
+    return stringDouble(
+      thread,
+      colorIndex,
+      pieces.map((routes) => routes[0] as number[]),
+      nails,
+      nailDiameter,
+    );
+  }
 
   const gap = (before: number[], after: number[]) =>
     distance(nails[before[before.length - 1] as number] as Nail, nails[after[0] as number] as Nail);
@@ -210,6 +219,77 @@ function stringThread(
     }
   }
   if (route.length < 2) return null;
+  return {
+    threadId: thread.id,
+    name: thread.name,
+    color: thread.colors[colorIndex] as string,
+    route,
+    joins,
+    length: routeLength(route, nails, nailDiameter),
+  };
+}
+
+/**
+ * String one colour of a thread with every part there and back again.
+ * Each part then is a round trip that can begin at any of its nails, so a
+ * part is hung into the thread at the first nail they share: the thread
+ * arrives there, makes the round trip and carries on. Parts that share no
+ * nail are reached over the shortest way, there and back as well. The
+ * whole thread ends on the nail it began at.
+ */
+function stringDouble(
+  thread: Thread,
+  colorIndex: number,
+  parts: readonly number[][],
+  nails: readonly Nail[],
+  nailDiameter: number,
+): StrungThread | null {
+  const roundTrip = (route: readonly number[]) => [...route, ...[...route].reverse().slice(1)];
+  /** A round trip turned so that it begins and ends at its nail number `at`. */
+  const beginningAt = (trip: readonly number[], at: number) => [
+    ...trip.slice(at, -1),
+    ...trip.slice(0, at),
+    trip[at] as number,
+  ];
+  const span = (a: number, b: number) => distance(nails[a] as Nail, nails[b] as Nail);
+
+  const waiting = parts.filter((route) => route.length > 1).map(roundTrip);
+  const route = waiting.shift();
+  if (!route) return null;
+  const bridges = new Set<string>();
+  while (waiting.length > 0) {
+    const reached = new Set(route);
+    const shared = waiting.findIndex((trip) => trip.some((nail) => reached.has(nail)));
+    if (shared >= 0) {
+      const [trip] = waiting.splice(shared, 1) as [number[]];
+      const index = route.findIndex((nail) => trip.includes(nail));
+      route.splice(index, 1, ...beginningAt(trip, trip.indexOf(route[index] as number)));
+      continue;
+    }
+    // Nothing shares a nail with the thread so far: take the nearest part.
+    let best = { trip: 0, index: 0, at: 0, length: Number.POSITIVE_INFINITY };
+    waiting.forEach((trip, tripIndex) => {
+      route.forEach((nail, index) => {
+        trip.forEach((other, at) => {
+          const length = span(nail, other);
+          if (length < best.length - 1e-9) best = { trip: tripIndex, index, at, length };
+        });
+      });
+    });
+    const [trip] = waiting.splice(best.trip, 1) as [number[]];
+    const here = route[best.index] as number;
+    bridges.add(`${here}-${trip[best.at] as number}`);
+    route.splice(best.index + 1, 0, ...beginningAt(trip, best.at), here);
+  }
+
+  const joins: { index: number; length: number }[] = [];
+  for (let index = 0; index + 1 < route.length; index++) {
+    const a = route[index] as number;
+    const b = route[index + 1] as number;
+    if (bridges.has(`${a}-${b}`) || bridges.has(`${b}-${a}`)) {
+      joins.push({ index, length: span(a, b) });
+    }
+  }
   return {
     threadId: thread.id,
     name: thread.name,
