@@ -130,6 +130,8 @@ const templateSchema = z.discriminatedUnion('id', [
     radius: positive,
     length: positive,
     nails: z.number().int().min(2).max(500),
+    /** One thread per colour for fans and star together, instead of two. */
+    joined: z.boolean().default(false),
   }),
   /** A times table on a circle: nail i goes to nail `factor` × i. */
   z.strictObject({

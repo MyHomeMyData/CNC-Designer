@@ -542,6 +542,12 @@ function TemplateFields(props: {
             value={template.nails}
             onCommit={(nails) => onChange({ ...template, nails: whole(nails) })}
           />
+          <CheckField
+            label="One thread per colour"
+            title="Fans and star of a colour as a single thread instead of two. They hang together at the spokes, so the thread never has to cross from one spoke to another."
+            checked={template.joined}
+            onChange={(joined) => onChange({ ...template, joined })}
+          />
         </>
       );
     case 'cardioid':

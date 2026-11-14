@@ -527,11 +527,12 @@ describe('template parameters', () => {
     expect(radii.filter((r) => Math.abs(r - outer) < 0.01)).toHaveLength(6);
     // one thread per colour, three spokes each; it changes spokes twice, along the rim
     expect(art.threads.map((strung) => strung.name)).toEqual(['Fans', 'Fans', 'Star', 'Star']);
+    // rose is strung first and lies below turquoise
     expect(art.threads.map((strung) => strung.color)).toEqual([
-      '#35c4c0',
       '#f29c9c',
       '#35c4c0',
       '#f29c9c',
+      '#35c4c0',
     ]);
     const lines = (strung: (typeof art.threads)[number]) => {
       const counts = new Map<string, number>();
@@ -572,6 +573,37 @@ describe('template parameters', () => {
     for (const strung of art.threads.slice(2)) {
       for (const [key, times] of lines(strung)) if (long.includes(key)) expect(times).toBe(2);
     }
+  });
+
+  it('spokes and tangents with one thread per colour: the same lines, no crossings', () => {
+    const params = TEMPLATES.find((template) => template.id === 'spokes-tangents')?.create();
+    if (params?.template?.id !== 'spokes-tangents') throw new Error('template missing');
+    const four = computeStringArt(params);
+    const two = computeStringArt(applyTemplate(params, { ...params.template, joined: true }));
+    expect(two.issues).toEqual([]);
+    expect(two.threads.map((strung) => strung.name)).toEqual(['Fans and star', 'Fans and star']);
+    expect(two.threads.map((strung) => strung.color)).toEqual(['#f29c9c', '#35c4c0']);
+    const steps = (threads: typeof two.threads, color: string) => {
+      const set = new Set<string>();
+      for (const strung of threads.filter((candidate) => candidate.color === color)) {
+        expect(strung.route[0]).toBe(strung.route[strung.route.length - 1]);
+        const crossing = new Set(strung.joins.map((join) => join.index));
+        for (let i = 1; i < strung.route.length; i++) {
+          if (crossing.has(i - 1)) continue;
+          const pair = [strung.route[i - 1] as number, strung.route[i] as number];
+          set.add(pair.sort((x, y) => x - y).join('-'));
+        }
+      }
+      return set;
+    };
+    for (const strung of two.threads) expect(strung.joins).toEqual([]);
+    for (const color of ['#f29c9c', '#35c4c0']) {
+      expect(steps(two.threads, color)).toEqual(steps(four.threads, color));
+    }
+    // shorter by the crossings that are no longer needed
+    const total = (threads: typeof two.threads) =>
+      threads.reduce((sum, strung) => sum + strung.length, 0);
+    expect(total(two.threads)).toBeLessThan(total(four.threads));
   });
 
   it('cardioid: the factor sets the rule', () => {

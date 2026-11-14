@@ -134,10 +134,12 @@ function parabolaStar(template: Extract<Template, { id: 'parabola-star' }>): Bui
 /**
  * Spokes and, halfway between them, rows that touch a circle. Every spoke
  * is joined to the two rows next to it and, with its inner half, to the
- * spokes on both sides; the colours take turns from spoke to spoke.
+ * spokes on both sides; the colours take turns from spoke to spoke. Per
+ * colour that is one thread for the fans and one for the star, or, with
+ * `joined`, a single thread: fans and star hang together at the spokes.
  */
 function spokesAndTangents(template: Extract<Template, { id: 'spokes-tangents' }>): Built {
-  const { count, inner, outer, radius, length, nails } = template;
+  const { count, inner, outer, radius, length, nails, joined } = template;
   const half = Math.PI / count;
   const round = (value: number) => Math.round(value * 1000) / 1000 + 0;
   // The row touches the circle at the angle `half` and runs on in the
@@ -148,6 +150,26 @@ function spokesAndTangents(template: Extract<Template, { id: 'spokes-tangents' }
   });
   const near = end(-length / 2);
   const far = end(length / 2);
+  // Rose is strung first and lies below turquoise.
+  const colors = [ROSE, TURQUOISE];
+  const fans = [
+    // First the row of the repetition before this one, counted from its
+    // far end, which lies next to this spoke.
+    newPart('spoke', 'tangent', { toCopy: count - 1 }),
+    // Then the row on the other side: the inner end of the spoke goes to
+    // the near end of that row, the outer end to its far end.
+    newPart('spoke', 'tangent', { reverse: false }),
+  ];
+  // The inner half of each spoke goes to the outer half of the spokes on
+  // both sides, running against each other. With the same from the
+  // neighbours, in the other colour, each pair of spokes carries a whole
+  // parabola: it closes the round holes towards the centre and leaves a
+  // star there. With an odd number of nails the middle nail belongs to the
+  // half that goes to the next spoke.
+  const star = [
+    newPart('spoke', 'spoke', { toCopy: count - 1, count: Math.floor(nails / 2) }),
+    newPart('spoke', 'spoke', { toCopy: 1, count: Math.ceil(nails / 2) }),
+  ];
   const rows: Row[] = [
     {
       id: 'spoke',
@@ -165,40 +187,21 @@ function spokesAndTangents(template: Extract<Template, { id: 'spokes-tangents' }
   return {
     rows,
     repeat: count,
-    threads: [
-      {
-        id: 'fans',
-        name: 'Fans',
-        colors: [TURQUOISE, ROSE],
-        visible: true,
-        double: true,
-        parts: [
-          // First the row of the repetition before this one, counted from
-          // its far end, which lies next to this spoke.
-          newPart('spoke', 'tangent', { toCopy: count - 1 }),
-          // Then the row on the other side: the inner end of the spoke goes
-          // to the near end of that row, the outer end to its far end.
-          newPart('spoke', 'tangent', { reverse: false }),
+    threads: joined
+      ? [
+          {
+            id: 'all',
+            name: 'Fans and star',
+            colors,
+            visible: true,
+            double: true,
+            parts: [...fans, ...star],
+          },
+        ]
+      : [
+          { id: 'fans', name: 'Fans', colors, visible: true, double: true, parts: fans },
+          { id: 'star', name: 'Star', colors, visible: true, double: true, parts: star },
         ],
-      },
-      {
-        // The inner half of each spoke goes to the outer half of the spokes
-        // on both sides, running against each other. With the same from the
-        // neighbours, in the other colour, each pair of spokes carries a
-        // whole parabola: it closes the round holes towards the centre and
-        // leaves a star there. With an odd number of nails the middle nail
-        // belongs to the half that goes to the next spoke.
-        id: 'star',
-        name: 'Star',
-        colors: [TURQUOISE, ROSE],
-        visible: true,
-        double: true,
-        parts: [
-          newPart('spoke', 'spoke', { toCopy: count - 1, count: Math.floor(nails / 2) }),
-          newPart('spoke', 'spoke', { toCopy: 1, count: Math.ceil(nails / 2) }),
-        ],
-      },
-    ],
   };
 }
 
@@ -284,6 +287,7 @@ export const TEMPLATES: readonly {
         radius: 200,
         length: 145,
         nails: 21,
+        joined: false,
       },
     },
     { name: 'Cardioid', defaults: { id: 'cardioid', radius: 200, nails: 120, factor: 2 } },
