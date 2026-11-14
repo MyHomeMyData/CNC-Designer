@@ -11,6 +11,21 @@ export function downloadText(fileName: string, text: string, mimeType = 'text/pl
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
+/**
+ * Show a web page of its own in a new tab, e.g. for printing. If the
+ * browser does not allow the new tab, the page is offered as a download.
+ */
+export function openHtml(fileName: string, html: string): void {
+  const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+  if (window.open(url, '_blank')) {
+    // The tab needs the URL for as long as it may be reloaded.
+    setTimeout(() => URL.revokeObjectURL(url), 600_000);
+  } else {
+    URL.revokeObjectURL(url);
+    downloadText(fileName, html, 'text/html');
+  }
+}
+
 /** Let the user pick a file and return its text, or `null` if nothing was picked. */
 export function pickTextFile(accept: string): Promise<{ name: string; text: string } | null> {
   return new Promise((resolve) => {

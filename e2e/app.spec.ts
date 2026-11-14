@@ -270,6 +270,17 @@ test('design string art from a template and export the drilling program', async 
   await page.getByLabel('Template', { exact: true }).selectOption({ label: 'Cardioid' });
   await expect(page.getByText('120 nails to drill.')).toBeVisible();
 
+  // the instructions open as a page of their own, with the way of the thread
+  const popup = page.waitForEvent('popup');
+  await page.getByRole('button', { name: 'Stringing instructions' }).click();
+  const instructions = await popup;
+  await expect(instructions.getByRole('heading', { name: 'Times table' })).toBeVisible();
+  await expect(
+    instructions.getByText(/Tie it to A\d+; it ends at A\d+ after \d+ nails\./),
+  ).toBeVisible();
+  await expect(instructions.getByRole('img', { name: 'Nail template' })).toBeVisible();
+  await instructions.close();
+
   // the nails are drilled: one program with 120 holes
   await page.getByRole('button', { name: /^G-code/ }).click();
   const file = await downloadText(page, () => page.locator('.program button').first().click());

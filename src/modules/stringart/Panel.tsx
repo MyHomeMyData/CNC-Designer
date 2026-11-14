@@ -1,8 +1,10 @@
 import { useId } from 'react';
 import { distance } from '../../core/geometry/index.ts';
 import { CheckField, NumberField, SelectField, TextField } from '../../ui/fields.tsx';
+import { openHtml } from '../../ui/files.ts';
 import type { PanelProps } from '../types.ts';
 import { stringArtOf } from './compute.ts';
+import { instructionsHtml } from './instructions.ts';
 import {
   parseStringArtParams,
   type Curve,
@@ -745,6 +747,14 @@ export function StringArtPanel({ params, onChange }: PanelProps<StringArtParams>
           {issue}
         </p>
       ))}
+      <button
+        type="button"
+        disabled={art.layout.nails.length === 0}
+        title="A page for printing: the nails with their names and the way of every thread"
+        onClick={() => openHtml('string-art-instructions.html', instructionsHtml(params))}
+      >
+        Stringing instructions
+      </button>
     </>
   );
 }

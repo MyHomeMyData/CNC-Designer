@@ -7,6 +7,11 @@ import {
   type Thread,
   type ThreadPart,
 } from '../../src/modules/stringart/model.ts';
+import {
+  instructionsHtml,
+  nameNails,
+  rowLetters,
+} from '../../src/modules/stringart/instructions.ts';
 import { cosDeg, layoutNails, rowNails, sinDeg } from '../../src/modules/stringart/nails.ts';
 import { generateStringArt, previewStringArt } from '../../src/modules/stringart/compute.ts';
 import { applyTemplate, starGeometry, TEMPLATES } from '../../src/modules/stringart/templates.ts';
@@ -631,6 +636,92 @@ describe('geometry and preview', () => {
     expect(preview.strokes[0]?.color).toBe('#00aacc');
     expect(preview.strokes[0]?.points).toHaveLength(10);
     expect(preview.strokes[0]?.points[1]).toEqual({ x: 0, y: 40 });
+  });
+});
+
+describe('instructions', () => {
+  const template = (name: string) =>
+    (TEMPLATES.find((entry) => entry.name === name) as (typeof TEMPLATES)[number]).create();
+
+  it('letters go on after Z', () => {
+    expect([0, 25, 26, 27, 51, 52, 701, 702].map(rowLetters)).toEqual([
+      'A',
+      'Z',
+      'AA',
+      'AB',
+      'AZ',
+      'BA',
+      'ZZ',
+      'AAA',
+    ]);
+  });
+
+  it('every repetition of a row has its own letters, every nail one name', () => {
+    const params = template('Spokes and tangents');
+    const art = computeStringArt(params);
+    const { rows, names } = nameNails(art.layout, params);
+    expect(rows.map((row) => row.letters).join('')).toBe('ABCDEFGHIJKL');
+    expect(rows.slice(0, 3).map((row) => `${row.rowName} ${row.copy}`)).toEqual([
+      'Spoke 1',
+      'Tangent 1',
+      'Spoke 2',
+    ]);
+    expect(names).toHaveLength(252);
+    expect(new Set(names).size).toBe(252);
+    expect(names[(art.layout.rows.get('spoke')?.copies[0] as number[])[0] as number]).toBe('A1');
+    expect(names[(art.layout.rows.get('tangent')?.copies[5] as number[])[20] as number]).toBe(
+      'L21',
+    );
+  });
+
+  it('a nail shared by two rows is named after the first of them', () => {
+    const params = template('Parabola star');
+    const art = computeStringArt(params);
+    const { rows, names } = nameNails(art.layout, params);
+    expect(new Set(names).size).toBe(art.layout.nails.length);
+    expect(names.every((name) => name !== '')).toBe(true);
+    // The corner ends row A and begins row B.
+    const corner = (rows[1] as (typeof rows)[number]).nails[0] as number;
+    expect(names[corner]).toBe('A19');
+  });
+
+  it('list the way of every thread by the names of the nails', () => {
+    const params = template('Circle with axes');
+    const art = computeStringArt(params);
+    const { names } = nameNails(art.layout, params);
+    const html = instructionsHtml(params);
+    expect(html).toContain('197 nails');
+    for (const thread of art.threads) {
+      expect(html).toContain(`${(thread.length / 1000).toFixed(1)} m of thread`);
+      const listed = [
+        ...(html
+          .split('<section class="thread">')
+          .find((section) => section.includes(`</span>${thread.name}</h2>`))
+          ?.matchAll(/(?<=[> ])([A-Z]+\d+)(?=[ <])/g) ?? []),
+      ].map((match) => match[1]);
+      // The first and the last nail are also named in the sentence above the list.
+      expect(listed.slice(2)).toEqual(thread.route.map((nail) => names[nail]));
+    }
+  });
+
+  it('mark crossings and escape names', () => {
+    const params = template('Spokes and tangents');
+    const first = params.threads[0] as Thread;
+    const html = instructionsHtml({
+      ...params,
+      threads: [{ ...first, name: 'Fans <1>' }, ...params.threads.slice(1)],
+    });
+    expect(html).toContain('Fans &lt;1&gt;');
+    expect(html).not.toContain('Fans <1>');
+    expect(html).toContain('4 crossings (⇢) of up to 74 mm');
+    expect(html.match(/⇢<\/b>/g)).toHaveLength(8);
+  });
+
+  it('a design without nails or threads still gives a page', () => {
+    expect(instructionsHtml(design())).toContain('no nails');
+    expect(instructionsHtml(design({ rows: [segment('a', 100, 0, 5)] }))).toContain(
+      'no visible threads',
+    );
   });
 });
 
