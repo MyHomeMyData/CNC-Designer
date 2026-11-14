@@ -1,4 +1,4 @@
-; CNC-Designer 0.1.0
+; CNC-Designer 0.2.0
 ; Program: Sample: Quadrat fuer Juergen
 ; Tool: 2 mm end mill
 ;
