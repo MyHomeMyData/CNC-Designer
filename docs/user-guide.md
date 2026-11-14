@@ -45,6 +45,7 @@ A design consists of layers. Choose a kind of layer and press _Add layer_:
 | Basic shape | A line, rectangle, circle, ellipse, or a grid of points |
 | SVG import  | Paths from an SVG file                                  |
 | Text        | Letters as outlines                                     |
+| String art  | Nails to drill, with threads strung between them        |
 
 Layers are worked from top to bottom. The arrows change the order, the
 checkbox hides a layer (hidden layers are not exported), ✕ deletes it.
@@ -108,6 +109,89 @@ Earlier lines stand above. Only descenders, as in g or p, reach below.
 
 Letters are drawn as outlines: the tool follows the edge of each letter.
 Single-line engraving fonts are not supported yet.
+
+### String art
+
+A string art layer is a pattern of nails with threads strung between them.
+The machine drills the holes for the nails; the threads are strung by hand,
+following printed instructions. The drawing shows the threads in their
+colours on a board of the colour you choose, so you can judge the result
+before drilling. A new layer is given a drilling operation.
+
+#### Templates
+
+The quickest start is a template. Each has a few settings of its own:
+
+| Template            | What it is                                                                                   | Settings                                                                                                           |
+| ------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Circle with axes    | A circle with two axes, a star inside and curves at the rim                                  | Radius, nails per row                                                                                              |
+| Parabola star       | A star outline of triangles that point outwards                                              | Number of triangles, outer radius, triangle height, nails per leg                                                  |
+| Spokes and tangents | Spokes around the centre and, between them, rows that touch a circle; two colours take turns | Number of spokes, where they begin and end, radius of the circle the other rows touch, their length, nails per row |
+| Cardioid            | A times table on a circle; factor 2 gives a heart-shaped curve                               | Radius, nails, factor                                                                                              |
+
+In _Spokes and tangents_ every thread runs there and back. With _One thread
+per colour_ the fans at the rim and the star in the middle are strung with
+a single thread per colour instead of two; the lines are the same.
+
+Changing a template setting builds rows and threads anew and keeps the
+names, colours and visibility of the threads.
+
+#### Designs of your own
+
+Below the template settings the design is laid open: its rows of nails and
+its threads. Changing rows, repetitions or thread rules there turns the
+layer into a design of your own (_Own design_); the template settings
+disappear.
+
+- A **row of nails** follows a straight line, a circle or ellipse (or a
+  part of one) or a polygon. Nails are spread evenly, by number or by
+  distance. Coordinates are relative to the layer position.
+- **Repetitions** turns all rows that many times around the layer
+  position. Nails that fall on the same spot become one nail.
+- A **thread** has a name and a colour and consists of **parts**. A part
+  joins two rows by a rule: nail _i_ of the first row goes to nail
+  _a × i + b_ of the second. _Set rule_ offers the common ones. _Count the
+  target row from its far end_ turns the second row around; this is what
+  makes a parabola in a corner when both rows start in that corner.
+  _To repetition_ joins a row with the one in the next repetition (1) or
+  further on.
+- _First nail_, _Every … nail_ and _Lines_ limit a part to a section of
+  the row.
+- _Thread runs_ _there and back_ zigzags between two rows; _as a chain_
+  works on one closed row, where each line starts at the nail the last one
+  ended on.
+- A thread with several **colours** uses them in turn from repetition to
+  repetition. Each colour is one piece of thread.
+- _Double: there and back_ strings every line twice, so the thread ends
+  on the nail it began at.
+
+Each colour of a thread is strung in one piece, knotted only at its first
+and last nail. Where the end of one part and the beginning of the next are
+different nails, the thread has to cross over; these **crossings** are
+counted under _Result_. Often one nail more or less per row removes them.
+
+_Result_ also shows the number of nails and the length of each thread, with
+one turn around every nail included. Nails closer together than _Smallest
+distance_ are reported. The lengths belong to the design as it is drawn in
+the panel; if you scale the layer under _Placement_, they no longer fit.
+
+#### Drilling and stringing
+
+The nails are the points of the layer. Give the layer's drilling operation
+the depth and tool you need and export the G-code as for any other layer.
+
+_Stringing instructions_ opens a page for printing:
+
+- a drawing of the nails. Every row on the board has its own letters, which
+  stand at its nail 1; every fifth nail carries its number. A nail shared
+  by two rows is named after the row that comes first in the alphabet.
+- a picture of the finished piece and the list of rows
+- for each thread its length, the nail to tie it to, and the nails in the
+  order the thread goes round them, such as `A1 B1 B2 A2`. An arrow (⇢)
+  marks a crossing.
+
+The drawing fills the page and is not to scale, and it shows the design
+before the layer is turned, mirrored or scaled.
 
 ## Operations
 

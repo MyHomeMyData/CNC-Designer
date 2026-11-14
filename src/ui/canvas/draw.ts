@@ -9,6 +9,19 @@ export interface SceneLayer {
   readonly geometry: Geometry | null;
   /** Handles of the layer's own shape, in program coordinates. */
   readonly handles: readonly ShapeHandle[];
+  /** The module's own preview, in program coordinates; `null` for none. */
+  readonly preview: ScenePreview | null;
+}
+
+export interface ScenePreview {
+  /** Colour of the workpiece under this layer, or `null`. */
+  readonly background: string | null;
+  readonly strokes: readonly {
+    readonly points: readonly Vec2[];
+    readonly color: string;
+    /** Width in mm. */
+    readonly width: number;
+  }[];
 }
 
 /** A handle on the shape itself, e.g. on an edge of a rectangle. */
@@ -89,7 +102,18 @@ function rectPath(ctx: Ctx, view: View, x: { min: number; max: number }, y: type
   ctx.rect(a.x, a.y, b.x - a.x, b.y - a.y);
 }
 
-function drawGeometry(ctx: Ctx, view: View, geometry: Geometry, color: string, width: number) {
+/** Colour of nails on a board that has its own colour. */
+const NAIL_COLOR = '#c9ccd1';
+
+function drawGeometry(
+  ctx: Ctx,
+  view: View,
+  geometry: Geometry,
+  color: string,
+  width: number,
+  /** Draw points as plain dots of this colour, e.g. nails under threads. */
+  dots: string | null = null,
+) {
   ctx.strokeStyle = color;
   ctx.fillStyle = color;
   ctx.lineWidth = width;
@@ -108,6 +132,17 @@ function drawGeometry(ctx: Ctx, view: View, geometry: Geometry, color: string, w
     if (closed) ctx.closePath();
     ctx.stroke();
   }
+  if (dots !== null) {
+    ctx.fillStyle = dots;
+    const radius = Math.max(1.2, 0.75 * view.scale);
+    for (const point of geometry.points) {
+      const p = toScreen(view, point);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, radius, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+    return;
+  }
   // Single points are drawn as small crosshair circles.
   for (const point of geometry.points) {
     const p = toScreen(view, point);
@@ -118,6 +153,33 @@ function drawGeometry(ctx: Ctx, view: View, geometry: Geometry, color: string, w
     ctx.arc(p.x, p.y, 1, 0, 2 * Math.PI);
     ctx.fill();
   }
+}
+
+/** The modules' own previews, e.g. the threads of string art. */
+function drawPreviews(ctx: Ctx, scene: Scene): void {
+  const { view } = scene;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.setLineDash([]);
+  // Slightly translucent, so places where many lines cross look denser.
+  ctx.globalAlpha = 0.85;
+  for (const layer of scene.layers) {
+    for (const stroke of layer.preview?.strokes ?? []) {
+      const [first, ...rest] = stroke.points;
+      if (!first) continue;
+      ctx.strokeStyle = stroke.color;
+      ctx.lineWidth = Math.max(0.75, stroke.width * view.scale);
+      const start = toScreen(view, first);
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      for (const point of rest) {
+        const p = toScreen(view, point);
+        ctx.lineTo(p.x, p.y);
+      }
+      ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
 }
 
 /** Deepest working Z of all toolpaths, as a positive depth; at least a small value. */
@@ -328,22 +390,25 @@ export function drawScene(ctx: Ctx, scene: Scene, palette: Palette): void {
   ctx.fillRect(0, 0, width, height);
 
   rectPath(ctx, view, workpiece.x, workpiece.y);
-  ctx.fillStyle = palette.workpiece;
+  // A design can bring its own board colour, e.g. dark for string art.
+  const board = scene.layers.find((layer) => layer.preview?.background)?.preview?.background;
+  ctx.fillStyle = board ?? palette.workpiece;
   ctx.fill();
 
   drawGrid(ctx, scene, palette);
 
   if (scene.showResult) drawResult(ctx, scene, palette);
+  drawPreviews(ctx, scene);
 
   for (const layer of scene.layers) {
     if (layer.geometry && layer.id !== scene.selectedLayerId) {
-      drawGeometry(ctx, view, layer.geometry, palette.path, 1);
+      drawGeometry(ctx, view, layer.geometry, palette.path, 1, layer.preview && NAIL_COLOR);
     }
   }
   if (scene.showTravel) drawTravel(ctx, scene, palette);
   for (const layer of scene.layers) {
     if (layer.geometry && layer.id === scene.selectedLayerId) {
-      drawGeometry(ctx, view, layer.geometry, palette.selected, 2);
+      drawGeometry(ctx, view, layer.geometry, palette.selected, 2, layer.preview && NAIL_COLOR);
     }
   }
 

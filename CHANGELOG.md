@@ -1,7 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 – 2026-11-14
 
+- String art: a new kind of layer. Rows of nails on lines, circles,
+  ellipses and polygons, repeated around a centre; threads strung between
+  rows by a rule, shown in their colours on a board of a chosen colour;
+  thread lengths; the nails are drilled with the existing drilling
+  operation
+- String art templates with their own settings: circle with axes, parabola
+  star, spokes and tangents, cardioid
+- String art: printable stringing instructions with named nails and the
+  way of every thread
 - Basic shapes: ellipse, with handles at the ends of its axes
 - Snap grid for moving layers and pulling edges, 10 mm by default,
   adjustable in whole millimetres; Alt switches it off for one drag

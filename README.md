@@ -8,8 +8,9 @@ that distinguishes working moves from positioning moves, each with its own
 Z height and feed rate.
 
 **Status: early prototype.** The shared core, the user interface and modules
-for basic shapes, SVG import and text exist. G-code from the app has been run
-on the machine. The remaining use cases below are still to come.
+for basic shapes, SVG import, text and string art exist. G-code from the app
+has been run on the machine; a string art piece has not been made with it
+yet. The remaining use cases below are still to come.
 
 ## Planned use cases
 

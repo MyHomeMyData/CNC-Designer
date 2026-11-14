@@ -4,7 +4,8 @@ import type { GeometryResolver } from '../core/project/index.ts';
 import { shapesModule } from './shapes/index.ts';
 import { svgModule } from './svg/index.ts';
 import { textModule } from './text/index.ts';
-import type { DesignModule, HandleDrag, ModuleHandle } from './types.ts';
+import { stringArtModule } from './stringart/index.ts';
+import type { DesignModule, HandleDrag, ModuleHandle, ModulePreview } from './types.ts';
 
 /**
  * A design module as the app sees it: with the type of its parameters
@@ -20,6 +21,8 @@ export interface RegisteredModule {
   layerName(params: unknown): string;
   /** Geometry for the given parameters, or `null` if they are unusable. */
   generate(params: unknown): Geometry | null;
+  /** The module's own preview in the layer's own coordinates, or `null` for none. */
+  preview(params: unknown): ModulePreview | null;
   /** Handles on the shape itself, in the layer's own coordinates. */
   handles(params: unknown): readonly ModuleHandle[];
   /** Parameters after a handle was pulled to `to`; `null` for no change. */
@@ -56,6 +59,10 @@ function register<P>(module: DesignModule<P>): RegisteredModule {
       if (!cache.has(raw)) cache.set(raw, compute(raw));
       return cache.get(raw) ?? null;
     },
+    preview(raw) {
+      const params = module.parseParams(raw);
+      return (params !== null && module.preview?.(params)) || null;
+    },
     handles(raw) {
       const params = module.parseParams(raw);
       return (params !== null && module.handles?.(params)) || [];
@@ -77,6 +84,7 @@ export const MODULES: readonly RegisteredModule[] = [
   register(shapesModule),
   register(svgModule),
   register(textModule),
+  register(stringArtModule),
 ];
 
 export function findModule(id: string): RegisteredModule | undefined {
