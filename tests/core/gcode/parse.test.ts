@@ -37,9 +37,10 @@ describe('parseGcode', () => {
     ].join('\r\n');
     const { moves, comments, issues } = parseGcode(source);
     expect(issues).toEqual([]);
+    // The start code between BEGIN PRE and END PRE is skipped, feed rate included.
     expect(moves).toEqual([
-      { rapid: false, x: 0, y: 137, z: null, feed: 2500, line: 10 },
-      { rapid: false, x: 54, y: 138, z: null, feed: 2500, line: 13 },
+      { rapid: false, x: 0, y: 137, z: null, feed: null, line: 10 },
+      { rapid: false, x: 54, y: 138, z: null, feed: null, line: 13 },
     ]);
     expect(comments.map((c) => c.text)).toContain('BEGIN LAYER: 0 point');
     expect(comments.find((c) => c.text === 'BEGIN CONNECTOR: 0')?.line).toBe(12);

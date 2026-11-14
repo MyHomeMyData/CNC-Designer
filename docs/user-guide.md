@@ -40,12 +40,13 @@ setting the zero point.
 
 A design consists of layers. Choose a kind of layer and press _Add layer_:
 
-| Kind        | What it is                                              |
-| ----------- | ------------------------------------------------------- |
-| Basic shape | A line, rectangle, circle, ellipse, or a grid of points |
-| SVG import  | Paths from an SVG file                                  |
-| Text        | Letters as outlines                                     |
-| String art  | Nails to drill, with threads strung between them        |
+| Kind          | What it is                                              |
+| ------------- | ------------------------------------------------------- |
+| Basic shape   | A line, rectangle, circle, ellipse, or a grid of points |
+| SVG import    | Paths from an SVG file                                  |
+| G-code import | Paths from a G-code file, e.g. from Sandify             |
+| Text          | Letters as outlines                                     |
+| String art    | Nails to drill, with threads strung between them        |
 
 Layers are worked from top to bottom. The arrows change the order, the
 checkbox hides a layer (hidden layers are not exported), ✕ deletes it.
@@ -95,6 +96,45 @@ convert text to paths in your drawing program first.
   the app recognises them and switches by itself.
 - _Curve tolerance_ is the largest deviation allowed when curves are turned
   into short straight moves.
+
+### G-code import
+
+Takes the paths from a G-code file, above all from files that
+[Sandify](https://sandify.org) writes for a sand table. Such a file has no
+heights: the ball draws one unbroken line. Here the heights, feed rates and
+passes come from the operation of the layer, as for any other layer.
+
+- Only X and Y of the moves are used. `G1` draws from where the last move
+  ended, `G0` starts a new path. Z values and feed rates of the file are
+  left out.
+- Code between `BEGIN PRE` and `END PRE` or `BEGIN POST` and `END POST` is
+  skipped. Sandify puts your own start and end code for the sand table
+  there, such as homing.
+- Files with arcs (`G2`, `G3`), relative coordinates or inches are refused.
+  A line that cannot be read is left out, with a note in the panel.
+
+Newer versions of Sandify mark the layers of a design and the ways between
+them in the file. The panel then lists them under _Parts of the file_:
+
+- Each **layer** can be switched on and off. A layer that is only a single
+  point does not appear.
+- **Connectors** are the ways from one layer to the next, often along the
+  edge of the table. They are switched off to begin with and can be opened
+  and switched on one by one or all together.
+
+Parts that are switched off are not worked: the tool lifts and travels to
+the next part. Where parts that are switched on follow each other without a
+gap, they are worked as one path.
+
+A file without these marks is one part and can only be worked as a whole.
+To split it, export it again with a current Sandify.
+
+Coordinates are those of the file, so the layer position is the zero point
+of the sand table. Sand tables are often larger than the work area; use
+_Placement_ to turn or scale the design, or _Fit into workpiece_.
+
+A file with a hundred thousand points and more works, but each change takes
+noticeably long. The project stores the paths, not the file.
 
 ### Text
 

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { Geometry, Vec2 } from '../core/geometry/index.ts';
 import type { GeometryResolver } from '../core/project/index.ts';
+import { gcodeModule } from './gcode/index.ts';
 import { shapesModule } from './shapes/index.ts';
 import { svgModule } from './svg/index.ts';
 import { textModule } from './text/index.ts';
@@ -83,6 +84,7 @@ function register<P>(module: DesignModule<P>): RegisteredModule {
 export const MODULES: readonly RegisteredModule[] = [
   register(shapesModule),
   register(svgModule),
+  register(gcodeModule),
   register(textModule),
   register(stringArtModule),
 ];
