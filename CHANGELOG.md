@@ -1,7 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 – 2026-11-14
 
+- G-code import: a new kind of layer that takes the paths from a G-code
+  file. Files from Sandify are split into their layers and the ways
+  between them, which can be switched on and off; start and end code for
+  the sand table is skipped. Heights and feed rates come from the operation
 - Checks and browser tests run on GitHub for every pull request and for
   `main`
 

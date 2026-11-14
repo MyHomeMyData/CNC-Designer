@@ -1,6 +1,6 @@
 {
   "name": "cnc-designer",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Browser-based design tool for creative CNC use cases (MPCNC / FluidNC)",
   "license": "MIT",

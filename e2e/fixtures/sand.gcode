@@ -1,0 +1,39 @@
+;
+; File name: 'sand'
+; File type: gcode
+;
+; BEGIN PRE
+G90 G21           (absolute, millimetres)
+$H                (homing of the sand table)
+G10 L20 P0 X0 Y0  (set the zero point)
+G1 F500
+; END PRE
+
+; BEGIN LAYER: 0 point
+G1 X0.000 Y0.000
+; END LAYER: 0 point
+
+; BEGIN CONNECTOR: 0
+G1 X0.000 Y0.000
+G1 X20.000 Y20.000
+; END CONNECTOR: 0
+
+; BEGIN LAYER: 1 square
+G1 X20.000 Y20.000
+G1 X80.000 Y20.000
+G1 X80.000 Y80.000
+G1 X20.000 Y80.000
+G1 X20.000 Y20.000
+; END LAYER: 1 square
+
+; BEGIN CONNECTOR: 1
+G1 X20.000 Y20.000
+G1 X120.000 Y20.000
+; END CONNECTOR: 1
+
+; BEGIN LAYER: 2 triangle
+G1 X120.000 Y20.000
+G1 X180.000 Y20.000
+G1 X150.000 Y70.000
+G1 X120.000 Y20.000
+; END LAYER: 2 triangle

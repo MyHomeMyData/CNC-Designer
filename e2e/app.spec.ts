@@ -53,6 +53,38 @@ test('import an SVG file', async ({ page }) => {
   await expect(page.getByLabel('Size in Y', { exact: true })).toHaveValue('80');
 });
 
+test('import a Sandify G-code file and choose its parts', async ({ page }) => {
+  await openApp(page);
+  await page.locator('.layer-add select').selectOption({ label: 'G-code import' });
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByRole('button', { name: 'Add layer' }).click(),
+  ]);
+  await chooser.setFiles('e2e/fixtures/sand.gcode');
+
+  await expect(page.locator('.layer-name')).toHaveText(['sand']);
+  await expect(page.getByText('180.0 × 80.0 mm, 13 points')).toBeVisible();
+  // layers are worked, the ways between them are not
+  await expect(page.getByLabel('1 square · 5 points')).toBeChecked();
+  await page.getByText('Connectors: 0 of 2 worked').click();
+  await expect(page.getByLabel('Connector 1 · 2 points')).not.toBeChecked();
+  await expect(page.getByLabel('Size in X', { exact: true })).toHaveValue('160');
+
+  const plunges = async () => {
+    await page.getByRole('button', { name: /^G-code/ }).click();
+    const file = await downloadText(page, () => page.locator('.program button').first().click());
+    // nothing of the sand table's own start code reaches the mill
+    expect(file.text).not.toMatch(/\$H|G10/);
+    return file.text.split('\n').filter((line) => /^G1 Z-/.test(line)).length;
+  };
+  expect(await plunges()).toBe(2);
+
+  // with the connector between them, square and triangle are one path
+  await page.getByLabel('Connector 1 · 2 points').check();
+  await expect(page.getByLabel('Size in X', { exact: true })).toHaveValue('160');
+  expect(await plunges()).toBe(1);
+});
+
 test('write text, save the project and open it again', async ({ page }) => {
   await openApp(page);
   await addLayer(page, 'Text');

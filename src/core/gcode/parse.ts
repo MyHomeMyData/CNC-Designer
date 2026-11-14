@@ -17,8 +17,27 @@ export interface ParsedComment {
   readonly line: number;
 }
 
+/**
+ * A stretch of the program marked by structure comments, as Sandify writes
+ * them: `BEGIN LAYER: 1 star` … `END LAYER: 1 star`, and the same with
+ * `CONNECTOR` for the way from one layer to the next.
+ */
+export interface ParsedSection {
+  readonly kind: 'layer' | 'connector';
+  /** Number given in the comment. */
+  readonly index: number;
+  /** Name given in the comment, possibly empty. */
+  readonly name: string;
+  /** Position of the section's first move in `moves`. */
+  readonly firstMove: number;
+  /** Number of moves in the section, possibly 0. */
+  readonly moveCount: number;
+}
+
 export interface ParsedGcode {
   readonly moves: readonly ParsedMove[];
+  /** Marked stretches in the order of the file; empty for files without marks. */
+  readonly sections: readonly ParsedSection[];
   readonly comments: readonly ParsedComment[];
   readonly issues: readonly Issue[];
 }
@@ -39,6 +58,10 @@ function normalizeCode(letter: string, value: string): string {
  * This is not a full G-code interpreter. It covers what this app writes
  * and what simple path generators such as Sandify produce. Anything that
  * would change the meaning of coordinates is reported as an error.
+ *
+ * Code between the comments `BEGIN PRE` and `END PRE`, or `BEGIN POST` and
+ * `END POST`, is skipped: Sandify puts the user's own start and end code
+ * there, which is meant for another machine.
  */
 export function parseGcode(source: string): ParsedGcode {
   const moves: ParsedMove[] = [];
@@ -49,6 +72,34 @@ export function parseGcode(source: string): ParsedGcode {
   let z: number | null = null;
   let feed: number | null = null;
   let rapid: boolean | null = null;
+  const sections: ParsedSection[] = [];
+  let open: { kind: ParsedSection['kind']; index: number; name: string; firstMove: number } | null =
+    null;
+  let skipping = false;
+
+  const closeSection = () => {
+    if (open) sections.push({ ...open, moveCount: moves.length - open.firstMove });
+    open = null;
+  };
+  /** Act on a structure comment; other comments have no effect. */
+  const structure = (text: string) => {
+    const block = /^(BEGIN|END) (?:PRE|POST)\b/i.exec(text);
+    if (block) {
+      skipping = (block[1] as string).toUpperCase() === 'BEGIN';
+      return;
+    }
+    const mark = /^(BEGIN|END) (LAYER|CONNECTOR):\s*(\d+)\s*(.*)$/i.exec(text);
+    if (!mark) return;
+    closeSection();
+    if ((mark[1] as string).toUpperCase() === 'BEGIN') {
+      open = {
+        kind: (mark[2] as string).toUpperCase() === 'LAYER' ? 'layer' : 'connector',
+        index: Number(mark[3]),
+        name: (mark[4] as string).trim(),
+        firstMove: moves.length,
+      };
+    }
+  };
 
   source.split(/\r?\n/).forEach((rawLine, index) => {
     const line = index + 1;
@@ -59,7 +110,9 @@ export function parseGcode(source: string): ParsedGcode {
       const text = code.slice(semicolon + 1).trim();
       if (text) comments.push({ text, line });
       code = code.slice(0, semicolon);
+      structure(text);
     }
+    if (skipping) return;
     code = code.replace(/\(([^)]*)\)/g, (_match, text: string) => {
       if (text.trim()) comments.push({ text: text.trim(), line });
       return ' ';
@@ -116,5 +169,6 @@ export function parseGcode(source: string): ParsedGcode {
     moves.push({ rapid, x, y, z, feed: rapid ? null : feed, line });
   });
 
-  return { moves, comments, issues };
+  closeSection();
+  return { moves, sections, comments, issues };
 }

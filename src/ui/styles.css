@@ -486,3 +486,11 @@ button:disabled {
   border-radius: 2px;
   vertical-align: baseline;
 }
+
+.connectors {
+  margin-top: 6px;
+}
+
+.connectors summary {
+  cursor: pointer;
+}
