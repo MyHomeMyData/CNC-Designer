@@ -105,6 +105,9 @@ npm run build    # production build in dist/
 The development server and the Docker container use the same port, so only
 one of them can run at a time.
 
+The checks, the build and the browser tests also run on GitHub for every
+pull request and for `main` (`.github/workflows/ci.yml`).
+
 Source layout:
 
 - `src/core/` – geometry, work area, operations, toolpaths, G-code and
