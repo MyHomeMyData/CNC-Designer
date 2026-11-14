@@ -133,8 +133,8 @@ function parabolaStar(template: Extract<Template, { id: 'parabola-star' }>): Bui
 
 /**
  * Spokes and, halfway between them, rows that touch a circle. Every spoke
- * is joined to the two rows next to it, with colours that take turns from
- * spoke to spoke, and to the next spoke.
+ * is joined to the two rows next to it and, with its inner half, to the
+ * spokes on both sides; the colours take turns from spoke to spoke.
  */
 function spokesAndTangents(template: Extract<Template, { id: 'spokes-tangents' }>): Built {
   const { count, inner, outer, radius, length, nails } = template;
@@ -180,9 +180,22 @@ function spokesAndTangents(template: Extract<Template, { id: 'spokes-tangents' }
           newPart('spoke', 'tangent', { reverse: false }),
         ],
       },
-      // From each spoke to the next one, running against each other: these
-      // curves close the round holes towards the centre and leave a star there.
-      thread('star', 'Star', TURQUOISE, [newPart('spoke', 'spoke', { toCopy: 1 })]),
+      {
+        // The inner half of each spoke goes to the outer half of the spokes
+        // on both sides, running against each other. With the same from the
+        // neighbours, in the other colour, each pair of spokes carries a
+        // whole parabola: it closes the round holes towards the centre and
+        // leaves a star there. With an odd number of nails the line between
+        // the two middle nails is strung in both colours.
+        id: 'star',
+        name: 'Star',
+        colors: [TURQUOISE, ROSE],
+        visible: true,
+        parts: [
+          newPart('spoke', 'spoke', { toCopy: count - 1, count: Math.ceil(nails / 2) }),
+          newPart('spoke', 'spoke', { toCopy: 1, count: Math.ceil(nails / 2) }),
+        ],
+      },
     ],
   };
 }

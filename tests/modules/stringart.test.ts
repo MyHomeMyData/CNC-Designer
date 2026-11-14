@@ -525,9 +525,18 @@ describe('template parameters', () => {
     ).toBe(true);
     expect(radii.filter((r) => Math.abs(r - outer) < 0.01)).toHaveLength(6);
     // one thread per colour, three spokes each; it changes spokes twice, along the rim
-    expect(art.threads.map((strung) => strung.name)).toEqual(['Fans', 'Fans', 'Star']);
-    expect(art.threads.map((strung) => strung.color)).toEqual(['#35c4c0', '#f29c9c', '#35c4c0']);
-    expect(art.threads[2]?.joins).toEqual([]);
+    expect(art.threads.map((strung) => strung.name)).toEqual(['Fans', 'Fans', 'Star', 'Star']);
+    expect(art.threads.map((strung) => strung.color)).toEqual([
+      '#35c4c0',
+      '#f29c9c',
+      '#35c4c0',
+      '#f29c9c',
+    ]);
+    // the star: 3 spokes, to both sides, 11 lines each, in one run
+    for (const strung of art.threads.slice(2)) {
+      expect(strung.joins).toEqual([]);
+      expect(strung.route).toHaveLength(3 * 2 * 11 * 2 - 5);
+    }
     for (const strung of art.threads.slice(0, 2)) {
       expect(strung.joins).toHaveLength(2);
       for (const join of strung.joins) expect(join.length).toBeLessThan(80);
