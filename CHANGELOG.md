@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- The app is published on GitHub Pages:
+  https://myhomemydata.github.io/CNC-Designer/
+
 ## 0.3.0 – 2026-11-14
 
 - G-code import: a new kind of layer that takes the paths from a G-code
