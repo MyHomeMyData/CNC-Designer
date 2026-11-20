@@ -53,7 +53,14 @@ async function createLayer(project: Project, moduleId: string): Promise<Layer | 
     visible: true,
     moduleId,
     params,
-    placement: DEFAULT_PLACEMENT,
+    placement:
+      module.newLayerAt === 'centre'
+        ? {
+            ...DEFAULT_PLACEMENT,
+            x: (project.workpiece.x.min + project.workpiece.x.max) / 2,
+            y: (project.workpiece.y.min + project.workpiece.y.max) / 2,
+          }
+        : DEFAULT_PLACEMENT,
     operationId: operation?.id ?? null,
     optimizeOrder: true,
   };

@@ -273,8 +273,9 @@ test('snap to a grid while dragging, and remember the setting', async ({ page })
 test('design string art from a template and export the drilling program', async ({ page }) => {
   await openApp(page);
   await addLayer(page, 'String art');
-  await setNumber(page, 'Position X', 400);
-  await setNumber(page, 'Position Y', 300);
+  // a new string art layer starts in the middle of the workpiece
+  await expect(page.getByLabel('Position X', { exact: true })).toHaveValue('400');
+  await expect(page.getByLabel('Position Y', { exact: true })).toHaveValue('300');
 
   // the default is the circle with two axes
   await expect(page.getByText('197 nails to drill.')).toBeVisible();

@@ -8,6 +8,8 @@ export const stringArtModule: DesignModule<StringArtParams> = {
   id: 'stringart',
   name: 'String art',
   defaultOperationKind: 'drill',
+  // Templates are drawn around their centre, which belongs in the middle of the board.
+  newLayerAt: 'centre',
   defaultParams: DEFAULT_STRING_ART,
   parseParams: parseStringArtParams,
   generate: generateStringArt,

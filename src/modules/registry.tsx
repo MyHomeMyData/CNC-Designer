@@ -16,6 +16,8 @@ export interface RegisteredModule {
   readonly id: string;
   readonly name: string;
   readonly defaultOperationKind: 'follow' | 'drill';
+  /** Where a new layer is put: origin at the zero point or at the centre of the workpiece. */
+  readonly newLayerAt: 'zero' | 'centre';
   /** Parameters for a new layer, possibly asking the user; `null` if cancelled. */
   createParams(): Promise<unknown>;
   /** Suggested name for a new layer with these parameters. */
@@ -49,6 +51,7 @@ function register<P>(module: DesignModule<P>): RegisteredModule {
     id: module.id,
     name: module.name,
     defaultOperationKind: module.defaultOperationKind,
+    newLayerAt: module.newLayerAt ?? 'zero',
     createParams: async () =>
       module.createParams ? await module.createParams() : module.defaultParams(),
     layerName(raw) {

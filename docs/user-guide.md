@@ -156,7 +156,8 @@ A string art layer is a pattern of nails with threads strung between them.
 The machine drills the holes for the nails; the threads are strung by hand,
 following printed instructions. The drawing shows the threads in their
 colours on a board of the colour you choose, so you can judge the result
-before drilling. A new layer is given a drilling operation.
+before drilling. A new layer is given a drilling operation and starts with
+its centre in the middle of the workpiece.
 
 #### Templates
 
