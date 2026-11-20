@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- String art: a new layer starts in the middle of the workpiece instead of
+  at the zero point
 - The app is published on GitHub Pages:
   https://myhomemydata.github.io/CNC-Designer/
 

@@ -69,6 +69,12 @@ export interface DesignModule<P> {
   createParams?(): Promise<P | null>;
   /** Suggested name for a new layer with these parameters. */
   layerName?(params: P): string;
+  /**
+   * Where a new layer is put: with its origin at the zero point (the
+   * default), or at the centre of the workpiece. The latter suits designs
+   * that are drawn around their own centre.
+   */
+  readonly newLayerAt?: 'zero' | 'centre';
   /** Check parameters read from a project file; `null` if they are unusable. */
   parseParams(raw: unknown): P | null;
   /** Compute the geometry in the layer's own coordinates. Must be a pure function. */
