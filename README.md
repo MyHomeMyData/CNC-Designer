@@ -68,7 +68,15 @@ Always check a new program with the tool well above the workpiece first.
 
 ## Running it
 
-The app is a set of static files. It always uses port 8090.
+The easiest way is the published version:
+**https://myhomemydata.github.io/CNC-Designer/**. It needs nothing but a
+current browser. The app stores nothing on the server; projects, G-code and
+SVG files are saved on your own computer. It is updated with every change on
+`main`.
+
+To run it yourself: the app is a set of static files and has to be served by
+a web server; opening `index.html` from disk does not work. It always uses
+port 8090.
 
 ### Docker
 
