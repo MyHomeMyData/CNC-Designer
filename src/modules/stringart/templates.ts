@@ -1,4 +1,6 @@
-import type { Row, StringArtParams, Template, Thread, ThreadPart } from './model.ts';
+import { distance, type Vec2 } from '../../core/geometry/index.ts';
+import type { NailSpacing, Row, StringArtParams, Template, Thread, ThreadPart } from './model.ts';
+import { rowNails, spiralPoint, taperShares } from './nails.ts';
 
 const BOARD = '#1c1c1e';
 const BLUE = '#1f9fc4';
@@ -205,6 +207,122 @@ function spokesAndTangents(template: Extract<Template, { id: 'spokes-tangents' }
   };
 }
 
+type Twisted = Extract<Template, { id: 'twisted-polygons' }>;
+
+/** The spiral of the twisted polygons with a given shape, before its nails are placed. */
+function twistSpiral(template: Twisted, shape: number): Extract<Row['curve'], { kind: 'spiral' }> {
+  // A side is the chord between two neighbouring corners.
+  const toRadius = (side: number) => side / (2 * Math.sin(Math.PI / template.corners));
+  return {
+    kind: 'spiral',
+    cx: 0,
+    cy: 0,
+    r1: toRadius(template.outer),
+    r2: toRadius(template.inner),
+    // The first polygon stands on one of its corners.
+    start: 90,
+    turn: template.clockwise ? -template.turn : template.turn,
+    shape,
+  };
+}
+
+function twistSpacing(template: Twisted): Extract<NailSpacing, { mode: 'taper' }> {
+  return {
+    mode: 'taper',
+    count: template.nails,
+    even: template.even,
+    ratio: template.innerGap / template.outerGap,
+  };
+}
+
+/** Length of a spiral, measured in many short pieces. */
+function spiralLength(curve: Extract<Row['curve'], { kind: 'spiral' }>): number {
+  let length = 0;
+  let previous = spiralPoint(curve, 0);
+  for (let i = 1; i <= 1024; i++) {
+    const point = spiralPoint(curve, i / 1024);
+    length += Math.hypot(point.x - previous.x, point.y - previous.y);
+    previous = point;
+  }
+  return length;
+}
+
+/** Shapes that are tried: from slowly to quickly closing in at the outside. */
+const SHAPES = { lowest: 0.1, highest: 20 };
+
+/**
+ * The shape of the spirals: how fast they close in from the outside. It is
+ * chosen so that the nails stand `outerGap` apart at the outside, given the
+ * way the distance shrinks towards the inside. A spiral that closes in
+ * quickly is shorter, so the shape is found by halving the range.
+ */
+function twistShape(template: Twisted): number {
+  const shares = taperShares(twistSpacing(template));
+  // The length the spiral needs so that the first distance is `outerGap`.
+  const wanted = template.outerGap / (shares[1] ?? 1);
+  let low = SHAPES.lowest;
+  let high = SHAPES.highest;
+  for (let i = 0; i < 40; i++) {
+    const middle = Math.sqrt(low * high);
+    if (spiralLength(twistSpiral(template, middle)) > wanted) low = middle;
+    else high = middle;
+  }
+  return Math.round(Math.sqrt(low * high) * 1000) / 1000;
+}
+
+/** What follows from the parameters of the twisted polygons, in mm. */
+export function twistGeometry(template: Twisted): {
+  /** How fast the spirals close in; 1 is evenly with the angle. */
+  readonly shape: number;
+  /** Distance between the first two and the last two nails of a spiral, as they come out. */
+  readonly outerGap: number;
+  readonly innerGap: number;
+} {
+  const shape = twistShape(template);
+  const { points } = rowNails({
+    id: 'spiral',
+    name: 'Spiral',
+    curve: twistSpiral(template, shape),
+    nails: twistSpacing(template),
+  });
+  const gap = (a: number, b: number) => distance(points.at(a) as Vec2, points.at(b) as Vec2);
+  return { shape, outerGap: gap(0, 1), innerGap: gap(-2, -1) };
+}
+
+/**
+ * Polygons that turn and shrink towards the centre. Their corners stand on
+ * spirals, one per corner. The thread starts at the innermost nail and
+ * goes round: the same nail on each spiral in turn, then on to the next
+ * nail outwards, so it ends at the outside where a knot is easy to tie.
+ * The curves that appear are not strung themselves: the lines wrap them.
+ */
+function twistedPolygons(template: Extract<Template, { id: 'twisted-polygons' }>): Built {
+  const { corners, clockwise } = template;
+  const round = (value: number) => Math.round(value * 1000) / 1000 + 0;
+  const curve = twistSpiral(template, twistShape(template));
+  return {
+    rows: [
+      {
+        id: 'spiral',
+        name: 'Spiral',
+        curve: { ...curve, r1: round(curve.r1), r2: round(curve.r2) },
+        nails: twistSpacing(template),
+      },
+    ],
+    repeat: corners,
+    threads: [
+      thread('sides', 'Sides', ORANGE, [
+        newPart('spiral', 'spiral', {
+          mode: 'rounds',
+          // The round goes the way the spirals open outwards.
+          toCopy: clockwise ? 1 : corners - 1,
+          reverse: true,
+        }),
+      ]),
+    ],
+  };
+}
+
 /** A times table on a circle; with the factor 2 its lines wrap a heart-shaped curve. */
 function cardioid(template: Extract<Template, { id: 'cardioid' }>): Built {
   const { radius, nails, factor } = template;
@@ -234,6 +352,8 @@ function build(template: Template): Built {
       return parabolaStar(template);
     case 'spokes-tangents':
       return spokesAndTangents(template);
+    case 'twisted-polygons':
+      return twistedPolygons(template);
     case 'cardioid':
       return cardioid(template);
   }
@@ -242,13 +362,16 @@ function build(template: Template): Built {
 /**
  * The design with rows, threads and repetitions built anew from `template`.
  * Names, colours and visibility of threads the design already has are kept, and
- * so are the settings that do not belong to the template.
+ * so are the settings that do not belong to the template, except those a
+ * newly chosen template brings along.
  */
 export function applyTemplate(params: StringArtParams, template: Template): StringArtParams {
   const built = build(template);
   const same = params.template?.id === template.id;
   return {
     ...params,
+    // A newly chosen template brings its own nail settings, if it has any.
+    ...(same ? {} : settingsOf(template)),
     ...built,
     template,
     threads: built.threads.map((fresh) => {
@@ -261,13 +384,22 @@ export function applyTemplate(params: StringArtParams, template: Template): Stri
 }
 
 function create(template: Template): StringArtParams {
-  return { ...base, template, ...build(template) };
+  return { ...base, ...settingsOf(template), template, ...build(template) };
 }
+
+/** The settings a template brings along; looked up late, as the list is defined below. */
+function settingsOf(template: Template): Settings {
+  return TEMPLATES.find((entry) => entry.id === template.id)?.settings ?? {};
+}
+
+/** Settings a template brings along when it is chosen, instead of the usual ones. */
+type Settings = Partial<Pick<StringArtParams, 'minSpacing' | 'nailDiameter'>>;
 
 export const TEMPLATES: readonly {
   readonly id: Template['id'];
   readonly name: string;
   readonly defaults: Template;
+  readonly settings: Settings;
   readonly create: () => StringArtParams;
 }[] = (
   [
@@ -290,9 +422,33 @@ export const TEMPLATES: readonly {
         joined: false,
       },
     },
+    {
+      name: 'Twisted polygons',
+      // As built by Jürgen: sides 270 mm outside and 14 mm inside, spirals
+      // turning by 315°, the first 12 nails 12 mm apart, 3 mm at the inside.
+      defaults: {
+        id: 'twisted-polygons',
+        corners: 3,
+        outer: 270,
+        inner: 14,
+        turn: 315,
+        nails: 50,
+        even: 12,
+        outerGap: 12,
+        innerGap: 3,
+        clockwise: true,
+      },
+      settings: { minSpacing: 3, nailDiameter: 1.2 },
+    },
     { name: 'Cardioid', defaults: { id: 'cardioid', radius: 200, nails: 120, factor: 2 } },
   ] as const
-).map((entry) => ({ ...entry, id: entry.defaults.id, create: () => create(entry.defaults) }));
+).map((entry: { name: string; defaults: Template; settings?: Settings }) => ({
+  name: entry.name,
+  id: entry.defaults.id,
+  defaults: entry.defaults,
+  settings: entry.settings ?? {},
+  create: () => create(entry.defaults),
+}));
 
 export const DEFAULT_STRING_ART = (): StringArtParams =>
   create({ id: 'circle-axes', radius: 200, nails: 26 });

@@ -37,12 +37,41 @@ const curveSchema = z.discriminatedUnion('kind', [
     sides: z.number().int().min(3).max(24),
     rotation: finite,
   }),
+  /**
+   * A spiral around (`cx`, `cy`) from the distance `r1` at the angle
+   * `start` to `r2` after turning by `turn` degrees (counter-clockwise if
+   * positive). An open row. With `shape` 1 the distance changes evenly
+   * with the angle; above 1 it shrinks faster at the start and slower
+   * towards the end, below 1 the other way round.
+   */
+  z.strictObject({
+    kind: z.literal('spiral'),
+    cx: finite,
+    cy: finite,
+    r1: finite.min(0),
+    r2: finite.min(0),
+    start: finite,
+    turn: finite,
+    shape: positive.default(1),
+  }),
 ]);
 
 /** How the nails are spread along the curve: a number of nails, or a distance between them. */
 const spacingSchema = z.discriminatedUnion('mode', [
   z.strictObject({ mode: z.literal('count'), count: z.number().int().min(2).max(2000) }),
   z.strictObject({ mode: z.literal('distance'), distance: positive }),
+  /**
+   * `count` nails; the first `even` of them stand at the same distance from
+   * each other, then the distance shrinks by the same factor from nail to
+   * nail, down to `ratio` times the first distance between the last two.
+   * Distances are taken along the curve. Only on straight lines and spirals.
+   */
+  z.strictObject({
+    mode: z.literal('taper'),
+    count: z.number().int().min(2).max(2000),
+    even: z.number().int().min(1),
+    ratio: positive,
+  }),
 ]);
 
 const rowSchema = z.strictObject({
@@ -64,9 +93,12 @@ const partSchema = z.strictObject({
   /**
    * `zigzag`: there and back between the two rows, moving on to the next
    * nail at each end. `chain`: on one closed row, each line starts where
-   * the last one ended.
+   * the last one ended. `rounds`: the same nail of the row `from` in every
+   * repetition in turn (going on by `toCopy` repetitions each time), then
+   * the next nail, and so on; with `reverse` the nails are counted from the
+   * far end of the row. A round goes through all repetitions at once.
    */
-  mode: z.enum(['zigzag', 'chain']),
+  mode: z.enum(['zigzag', 'chain', 'rounds']),
   a: z.number().int(),
   b: z.number().int(),
   /** Count the nails of `to` from its far end. */
@@ -132,6 +164,29 @@ const templateSchema = z.discriminatedUnion('id', [
     nails: z.number().int().min(2).max(500),
     /** One thread per colour for fans and star together, instead of two. */
     joined: z.boolean().default(false),
+  }),
+  /**
+   * Regular polygons, one inside the other, each a little smaller and
+   * turned a little further. Their corners stand on spirals, one per
+   * corner, with `nails` nails each. `outer` and `inner` are the side
+   * lengths of the outermost and the innermost polygon, `turn` is the angle
+   * a spiral turns by from its first nail to its last. How fast the spirals
+   * close in follows from the distances between the nails.
+   */
+  z.strictObject({
+    id: z.literal('twisted-polygons'),
+    corners: z.number().int().min(3).max(12),
+    outer: positive,
+    inner: positive,
+    turn: finite,
+    nails: z.number().int().min(2).max(500),
+    /** The first `even` nails of a spiral stand at the same distance `outerGap`. */
+    even: z.number().int().min(1),
+    /** Distance between the first two nails of a spiral, in mm. */
+    outerGap: positive,
+    /** Distance between the last two nails, in mm; it shrinks evenly towards it. */
+    innerGap: positive,
+    clockwise: z.boolean(),
   }),
   /** A times table on a circle: nail i goes to nail `factor` × i. */
   z.strictObject({

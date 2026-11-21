@@ -57,8 +57,8 @@ export function partRoutes(
   to: RowLayout,
   copy: number,
 ): number[][] {
-  if (part.mode === 'chain') {
-    const route = chainRoute(part, from, copy);
+  if (part.mode === 'chain' || part.mode === 'rounds') {
+    const route = part.mode === 'chain' ? chainRoute(part, from, copy) : roundsRoute(part, from);
     return route.length > 1 ? [route, [...route].reverse()] : [];
   }
   const lines = partLines(part, from, to, copy);
@@ -77,6 +77,31 @@ export function partRoutes(
     }
   }
   return routes;
+}
+
+/**
+ * Round the repetitions: the same nail of the row in each repetition in
+ * turn, then the next nail. The thread goes straight on from one nail to
+ * the next, so the lines wind round the centre like a spiral.
+ */
+function roundsRoute(part: ThreadPart, row: RowLayout): number[] {
+  const copies = row.copies.length;
+  const length = row.copies[0]?.length ?? 0;
+  if (copies === 0 || length === 0) return [];
+  // Repetitions in the order the thread visits them.
+  const order: number[] = [];
+  for (let k = 0, copy = 0; k < copies; k++, copy = (copy + part.toCopy) % copies) {
+    order.push(copy);
+  }
+  const route: number[] = [];
+  const limit = part.count ?? Number.POSITIVE_INFINITY;
+  for (let k = 0; k < limit; k++) {
+    const i = part.start + k * part.step;
+    if (i >= length) break;
+    const index = part.reverse ? length - 1 - i : i;
+    for (const copy of order) route.push((row.copies[copy] as number[])[index] as number);
+  }
+  return withoutRepeats(route);
 }
 
 /** On one closed row: each line starts where the last one ended. */
@@ -149,6 +174,8 @@ function stringThread(
       const from = rows.get(part.from);
       const to = rows.get(part.to);
       if (!from || !to) continue;
+      // A round goes through all repetitions at once, in the first colour.
+      if (part.mode === 'rounds' && copy !== 0) continue;
       const routes = partRoutes(part, from, to, copy);
       if (routes.length > 0) pieces.push(routes);
     }
@@ -315,6 +342,8 @@ export function computeStringArt(params: StringArtParams): StringArt {
         issues.push(`${label}: the row it uses does not exist.`);
       } else if (part.mode === 'chain' && (part.from !== part.to || part.toCopy % params.repeat)) {
         issues.push(`${label}: a chain needs one and the same row at both ends.`);
+      } else if (part.mode === 'rounds' && part.from !== part.to) {
+        issues.push(`${label}: a round needs one and the same row at both ends.`);
       } else if (part.mode === 'chain' && !from.closed) {
         issues.push(`${label}: a chain needs a closed row.`);
       } else if (partRoutes(part, from, to, 0).length === 0) {

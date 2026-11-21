@@ -15,7 +15,7 @@ import {
   type ThreadPart,
 } from './model.ts';
 import { rowNails } from './nails.ts';
-import { applyTemplate, newPart, starGeometry, TEMPLATES } from './templates.ts';
+import { applyTemplate, newPart, starGeometry, TEMPLATES, twistGeometry } from './templates.ts';
 
 type CurveKind = Curve['kind'];
 
@@ -23,12 +23,14 @@ const CURVE_OPTIONS: readonly { value: CurveKind; label: string }[] = [
   { value: 'segment', label: 'Straight line' },
   { value: 'arc', label: 'Circle or ellipse' },
   { value: 'polygon', label: 'Polygon' },
+  { value: 'spiral', label: 'Spiral' },
 ];
 
 const CURVE_DEFAULTS: { readonly [K in CurveKind]: Extract<Curve, { kind: K }> } = {
   segment: { kind: 'segment', x1: 0, y1: 0, x2: 200, y2: 0 },
   arc: { kind: 'arc', cx: 0, cy: 0, rx: 200, ry: 200, start: 0, end: 360 },
   polygon: { kind: 'polygon', cx: 0, cy: 0, radius: 200, sides: 6, rotation: 0 },
+  spiral: { kind: 'spiral', cx: 0, cy: 0, r1: 200, r2: 20, start: 90, turn: -360, shape: 1 },
 };
 
 /** Named rules; each sets the numbers of the general rule. */
@@ -63,6 +65,12 @@ const RULES: readonly {
       reverse: false,
     }),
     matches: (p) => p.mode === 'chain' && p.a === 1 && !p.reverse,
+  },
+  {
+    id: 'rounds',
+    label: 'Round the repetitions (spiral)',
+    apply: (part) => ({ ...part, to: part.from, mode: 'rounds', toCopy: Math.max(1, part.toCopy) }),
+    matches: (p) => p.mode === 'rounds',
   },
   {
     id: 'multiple',
@@ -158,6 +166,28 @@ function CurveFields(props: { readonly curve: Curve; readonly onChange: (curve: 
           {number('First corner at', curve.rotation, (rotation) => ({ ...curve, rotation }), '°')}
         </>
       );
+    case 'spiral':
+      return (
+        <>
+          {number('Centre X', curve.cx, (cx) => ({ ...curve, cx }))}
+          {number('Centre Y', curve.cy, (cy) => ({ ...curve, cy }))}
+          {number('Start radius', curve.r1, (r1) => ({ ...curve, r1: Math.max(0, r1) }))}
+          {number('End radius', curve.r2, (r2) => ({ ...curve, r2: Math.max(0, r2) }))}
+          {number('Start angle', curve.start, (start) => ({ ...curve, start }), '°')}
+          {number('Turn', curve.turn, (turn) => ({ ...curve, turn }), '°')}
+          {number(
+            'Shape',
+            curve.shape,
+            (shape) => ({ ...curve, shape: shape > 0 ? shape : curve.shape }),
+            '',
+          )}
+          <p className="hint">
+            Turns counter-clockwise for a positive angle. Shape 1 closes in evenly with the angle;
+            above 1 faster at the start, below 1 slower. A number of nails stand at equal steps of
+            the angle; distances are measured along the spiral.
+          </p>
+        </>
+      );
   }
 }
 
@@ -190,32 +220,67 @@ function RowEditor(props: {
           options={[
             { value: 'count', label: 'Number' },
             { value: 'distance', label: 'Distance' },
+            // Tapering needs a start and an end, so not on closed rows.
+            ...(row.curve.kind === 'segment' || row.curve.kind === 'spiral'
+              ? [{ value: 'taper' as const, label: 'Number, closer at the end' }]
+              : []),
           ]}
-          onChange={(mode) =>
+          onChange={(mode) => {
+            const count = Math.max(2, points.length);
             onChange({
               ...row,
               nails:
                 mode === 'count'
-                  ? { mode, count: Math.max(2, points.length) }
-                  : { mode, distance: Math.max(1, Math.round(gap * 10) / 10) },
-            })
-          }
+                  ? { mode, count }
+                  : mode === 'taper'
+                    ? { mode, count, even: 1, ratio: 0.5 }
+                    : { mode, distance: Math.max(1, Math.round(gap * 10) / 10) },
+            });
+          }}
         />
-        {row.nails.mode === 'count' ? (
-          <NumberField
-            label="Number of nails"
-            value={row.nails.count}
-            onCommit={(count) =>
-              onChange({ ...row, nails: { mode: 'count', count: Math.round(count) } })
-            }
-          />
-        ) : (
+        {row.nails.mode === 'distance' ? (
           <NumberField
             label="Distance"
             unit="mm"
             value={row.nails.distance}
             onCommit={(d) => onChange({ ...row, nails: { mode: 'distance', distance: d } })}
           />
+        ) : (
+          <NumberField
+            label="Number of nails"
+            value={row.nails.count}
+            onCommit={(value) => {
+              const count = Math.max(2, Math.round(value));
+              onChange({
+                ...row,
+                nails:
+                  row.nails.mode === 'taper' ? { ...row.nails, count } : { mode: 'count', count },
+              });
+            }}
+          />
+        )}
+        {row.nails.mode === 'taper' && (
+          <>
+            <NumberField
+              label="Evenly spaced"
+              title="The first nails of the row stand at the same distance from each other"
+              value={row.nails.even}
+              onCommit={(even) =>
+                row.nails.mode === 'taper' &&
+                onChange({ ...row, nails: { ...row.nails, even: Math.max(1, Math.round(even)) } })
+              }
+            />
+            <NumberField
+              label="Last distance"
+              title="The last distance as a share of the first, e.g. 0.25 for a quarter"
+              value={row.nails.ratio}
+              onCommit={(ratio) =>
+                row.nails.mode === 'taper' &&
+                ratio > 0 &&
+                onChange({ ...row, nails: { ...row.nails, ratio } })
+              }
+            />
+          </>
         )}
         <p className="hint">
           {points.length} nails, {gap.toFixed(1)} mm apart, {closed ? 'closed row' : 'open row'}.
@@ -318,6 +383,7 @@ function PartEditor(props: {
         options={[
           { value: 'zigzag', label: 'There and back' },
           { value: 'chain', label: 'As a chain' },
+          { value: 'rounds', label: 'Round the repetitions' },
         ]}
         onChange={(mode) => onChange({ ...part, mode })}
       />
@@ -552,6 +618,80 @@ function TemplateFields(props: {
           />
         </>
       );
+    case 'twisted-polygons': {
+      const { outerGap, innerGap } = twistGeometry(template);
+      // The spiral cannot always be shaped to give the wanted distances.
+      const off =
+        Math.abs(outerGap - template.outerGap) > 0.2 ||
+        Math.abs(innerGap - template.innerGap) > 0.2;
+      return (
+        <>
+          <NumberField
+            label="Corners"
+            title="3 for triangles, 4 for squares and so on"
+            value={template.corners}
+            onCommit={(corners) => onChange({ ...template, corners: whole(corners) })}
+          />
+          <NumberField
+            label="Outer side"
+            unit="mm"
+            title="Length of a side of the outermost polygon"
+            value={template.outer}
+            onCommit={(outer) => onChange({ ...template, outer })}
+          />
+          <NumberField
+            label="Inner side"
+            unit="mm"
+            title="Length of a side of the innermost polygon"
+            value={template.inner}
+            onCommit={(inner) => onChange({ ...template, inner })}
+          />
+          <NumberField
+            label="Turn"
+            unit="°"
+            title="How far a spiral turns from its outermost nail to its innermost"
+            value={template.turn}
+            onCommit={(turn) => onChange({ ...template, turn })}
+          />
+          <NumberField
+            label="Nails per spiral"
+            title="One spiral per corner; each nail is a corner of one polygon"
+            value={template.nails}
+            onCommit={(nails) => onChange({ ...template, nails: Math.max(2, whole(nails)) })}
+          />
+          <NumberField
+            label="Evenly spaced"
+            title="The outermost nails of a spiral stand at the same distance from each other"
+            value={template.even}
+            onCommit={(even) => onChange({ ...template, even: Math.max(1, whole(even)) })}
+          />
+          <NumberField
+            label="Outer distance"
+            unit="mm"
+            title="Distance between the evenly spaced nails at the outside"
+            value={template.outerGap}
+            onCommit={(outerGap) => outerGap > 0 && onChange({ ...template, outerGap })}
+          />
+          <NumberField
+            label="Inner distance"
+            unit="mm"
+            title="Distance between the two innermost nails; towards it the distance shrinks by the same factor from nail to nail"
+            value={template.innerGap}
+            onCommit={(innerGap) => innerGap > 0 && onChange({ ...template, innerGap })}
+          />
+          <CheckField
+            label="Turn clockwise"
+            title="Direction in which the polygons turn from the outside in"
+            checked={template.clockwise}
+            onChange={(clockwise) => onChange({ ...template, clockwise })}
+          />
+          <p className={off ? 'hint warning-text' : 'hint'}>
+            Nails {outerGap.toFixed(1)} mm apart at the outside, {innerGap.toFixed(1)} mm at the
+            inside.{off && ' The spirals cannot be shaped to give the distances asked for.'}
+          </p>
+        </>
+      );
+    }
     case 'cardioid':
       return (
         <>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { distance } from '../../src/core/geometry/index.ts';
+import { distance, type Vec2 } from '../../src/core/geometry/index.ts';
 import {
   parseStringArtParams,
   type Row,
@@ -12,9 +12,20 @@ import {
   nameNails,
   rowLetters,
 } from '../../src/modules/stringart/instructions.ts';
-import { cosDeg, layoutNails, rowNails, sinDeg } from '../../src/modules/stringart/nails.ts';
+import {
+  cosDeg,
+  layoutNails,
+  rowNails,
+  sinDeg,
+  taperShares,
+} from '../../src/modules/stringart/nails.ts';
 import { generateStringArt, previewStringArt } from '../../src/modules/stringart/compute.ts';
-import { applyTemplate, starGeometry, TEMPLATES } from '../../src/modules/stringart/templates.ts';
+import {
+  applyTemplate,
+  starGeometry,
+  TEMPLATES,
+  twistGeometry,
+} from '../../src/modules/stringart/templates.ts';
 import { computeStringArt, partLines, partRoutes } from '../../src/modules/stringart/threads.ts';
 
 const segment = (id: string, x2: number, y2: number, count: number): Row => ({
@@ -429,6 +440,7 @@ describe('templates', () => {
       'circle-axes',
       'parabola-star',
       'spokes-tangents',
+      'twisted-polygons',
       'cardioid',
     ]);
     for (const template of TEMPLATES) {
@@ -611,6 +623,87 @@ describe('template parameters', () => {
     expect(total(two.threads)).toBeLessThan(total(four.threads));
   });
 
+  it('twisted polygons: corners on spirals, nails closer together towards the inside', () => {
+    const entry = TEMPLATES.find((candidate) => candidate.id === 'twisted-polygons');
+    if (!entry || entry.defaults.id !== 'twisted-polygons') throw new Error('template missing');
+    const params = entry.create();
+    // brought along by the template: nails stand only 3 mm apart inside
+    expect(params.minSpacing).toBe(3);
+    expect(params.nailDiameter).toBe(1.2);
+
+    // the spirals are shaped so that the distances come out as asked for
+    const geometry = twistGeometry(entry.defaults);
+    expect(geometry.outerGap).toBeCloseTo(12, 1);
+    expect(geometry.innerGap).toBeCloseTo(3, 1);
+    // they close in faster at the outside than evenly with the angle
+    expect(geometry.shape).toBeGreaterThan(1);
+
+    const art = computeStringArt(params);
+    expect(art.issues).toEqual([]);
+    expect(art.layout.nails).toHaveLength(150);
+    const spiral = art.layout.rows.get('spiral')?.copies ?? [];
+    const at = (copy: number, index: number) =>
+      art.layout.nails[(spiral[copy] as number[])[index] as number] as { x: number; y: number };
+    // The first polygon stands on a corner at the top; each one is equilateral.
+    expect(at(0, 0).x).toBeCloseTo(0, 9);
+    expect(at(0, 0).y).toBeCloseTo(270 / Math.sqrt(3), 2);
+    for (const index of [0, 25, 49]) {
+      const side = distance(at(0, index), at(1, index));
+      expect(distance(at(1, index), at(2, index))).toBeCloseTo(side, 2);
+    }
+    expect(distance(at(0, 0), at(1, 0))).toBeCloseTo(270, 2);
+    expect(distance(at(0, 49), at(1, 49))).toBeCloseTo(14, 2);
+    // the first 12 nails stand 12 mm apart, then the distance shrinks
+    const gap = (index: number) => distance(at(0, index), at(0, index + 1));
+    for (let index = 0; index < 11; index++) expect(gap(index)).toBeCloseTo(12, 1);
+    for (let index = 11; index < 48; index++) expect(gap(index + 1)).toBeLessThan(gap(index));
+    // Clockwise from the outside in: the second nail lies right of the first.
+    expect(at(0, 1).x).toBeGreaterThan(0);
+    // the innermost polygon is turned by 315 degrees
+    const angle = (point: { x: number; y: number }) =>
+      (Math.atan2(point.y, point.x) * 180) / Math.PI;
+    expect(angle(at(0, 49))).toBeCloseTo(90 - 315 + 360, 6);
+
+    // From the innermost nail outwards, round the spirals: A50 B50 C50 A49 …
+    const thread = art.threads[0] as (typeof art.threads)[number];
+    const expected: number[] = [];
+    for (let index = 49; index >= 0; index--) {
+      for (let copy = 0; copy < 3; copy++)
+        expected.push((spiral[copy] as number[])[index] as number);
+    }
+    expect(thread.route).toEqual(expected);
+    expect(thread.joins).toEqual([]);
+    // the round goes counter-clockwise, the way the spirals open outwards
+    const turnOf = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+      a.x * b.y - a.y * b.x;
+    expect(turnOf(at(0, 10), at(1, 10))).toBeGreaterThan(0);
+
+    const squares = computeStringArt(
+      applyTemplate(params, { ...entry.defaults, corners: 4, clockwise: false }),
+    );
+    expect(squares.layout.nails).toHaveLength(200);
+    // turned the other way, the round goes the other way, too
+    const squareSpiral = squares.layout.rows.get('spiral')?.copies ?? [];
+    expect(squares.threads[0]?.route.slice(0, 4)).toEqual(
+      [0, 3, 2, 1].map((copy) => (squareSpiral[copy] as number[])[49]),
+    );
+  });
+
+  it('a template brings its nail settings only when it is chosen', () => {
+    const twisted = TEMPLATES.find((candidate) => candidate.id === 'twisted-polygons');
+    const circle = TEMPLATES[0];
+    if (!twisted || !circle || twisted.defaults.id !== 'twisted-polygons') {
+      throw new Error('template missing');
+    }
+    const chosen = applyTemplate(circle.create(), twisted.defaults);
+    expect([chosen.minSpacing, chosen.nailDiameter]).toEqual([3, 1.2]);
+    // changed by the user, kept while the template's parameters change
+    const mine = { ...chosen, minSpacing: 2.5 };
+    expect(applyTemplate(mine, { ...twisted.defaults, nails: 40 }).minSpacing).toBe(2.5);
+    // a template without such settings leaves them as they are
+    expect(applyTemplate(mine, circle.defaults).minSpacing).toBe(2.5);
+  });
+
   it('cardioid: the factor sets the rule', () => {
     const params = TEMPLATES.find((template) => template.id === 'cardioid')?.create();
     if (params?.template?.id !== 'cardioid') throw new Error('template missing');
@@ -636,6 +729,129 @@ describe('geometry and preview', () => {
     expect(preview.strokes[0]?.color).toBe('#00aacc');
     expect(preview.strokes[0]?.points).toHaveLength(10);
     expect(preview.strokes[0]?.points[1]).toEqual({ x: 0, y: 40 });
+  });
+});
+
+describe('rounds', () => {
+  it('visit the same nail in every repetition, then the next one', () => {
+    const params = design({
+      rows: [segment('a', 30, 0, 4)],
+      repeat: 3,
+      threads: [thread([part({ from: 'a', to: 'a', mode: 'rounds', toCopy: 1, start: 1 })])],
+    });
+    const art = computeStringArt(params);
+    expect(art.issues).toEqual([]);
+    const copies = art.layout.rows.get('a')?.copies ?? [];
+    const nail = (copy: number, index: number) => (copies[copy] as number[])[index];
+    // nail 0 is the shared centre and is left out by `start`
+    expect(art.threads[0]?.route).toEqual([
+      nail(0, 1),
+      nail(1, 1),
+      nail(2, 1),
+      nail(0, 2),
+      nail(1, 2),
+      nail(2, 2),
+      nail(0, 3),
+      nail(1, 3),
+      nail(2, 3),
+    ]);
+    expect(art.threads[0]?.joins).toEqual([]);
+  });
+
+  it('need one and the same row at both ends', () => {
+    const art = computeStringArt(
+      design({
+        rows: [segment('a', 30, 0, 4), segment('b', 0, 30, 4)],
+        threads: [thread([part({ mode: 'rounds' })])],
+      }),
+    );
+    expect(art.issues).toEqual([
+      'Thread "Thread", part 1: a round needs one and the same row at both ends.',
+    ]);
+  });
+});
+
+describe('tapering rows', () => {
+  it('keep the first distances even, then shrink them by the same factor', () => {
+    const shares = taperShares({ mode: 'taper', count: 6, even: 3, ratio: 0.25 });
+    const gaps = shares.slice(1).map((share, index) => share - (shares[index] as number));
+    expect(gaps).toHaveLength(5);
+    expect(gaps[1]).toBeCloseTo(gaps[0] as number, 12);
+    expect((gaps[3] as number) / (gaps[2] as number)).toBeCloseTo(
+      (gaps[4] as number) / (gaps[3] as number),
+      12,
+    );
+    expect((gaps[4] as number) / (gaps[0] as number)).toBeCloseTo(0.25, 12);
+    expect(shares[5]).toBe(1);
+  });
+
+  it('on a straight line', () => {
+    const { points } = rowNails({
+      id: 'a',
+      name: 'a',
+      curve: { kind: 'segment', x1: 0, y1: 0, x2: 100, y2: 0 },
+      nails: { mode: 'taper', count: 3, even: 1, ratio: 0.25 },
+    });
+    // distances 80 and 20 mm
+    expect(points.map((point) => point.x)).toEqual([0, 80, 100]);
+  });
+
+  it('are spread by number on curves without a beginning', () => {
+    const { points } = rowNails({
+      id: 'c',
+      name: 'c',
+      curve: { kind: 'arc', cx: 0, cy: 0, rx: 50, ry: 50, start: 0, end: 360 },
+      nails: { mode: 'taper', count: 12, even: 1, ratio: 0.25 },
+    });
+    expect(points).toHaveLength(12);
+  });
+});
+
+describe('spiral rows', () => {
+  const spiral = (nails: Row['nails'], turn: number): Row => ({
+    id: 's',
+    name: 's',
+    curve: { kind: 'spiral', cx: 10, cy: 0, r1: 100, r2: 0, start: 0, turn, shape: 1 },
+    nails,
+  });
+
+  it('by number: equal steps of the angle, the radius shrinking evenly', () => {
+    const { points, closed } = rowNails(spiral({ mode: 'count', count: 5 }, 360));
+    expect(closed).toBe(false);
+    const expected = [
+      [110, 0],
+      [10, 75],
+      [-40, 0],
+      [10, -25],
+      [10, 0],
+    ];
+    points.forEach((point, index) => {
+      expect(point.x).toBeCloseTo((expected[index] as number[])[0] as number, 9);
+      expect(point.y).toBeCloseTo((expected[index] as number[])[1] as number, 9);
+    });
+  });
+
+  it('a larger shape closes in faster at the outside', () => {
+    const row = spiral({ mode: 'count', count: 3 }, 0);
+    const middle = (shape: number) =>
+      rowNails({ ...row, curve: { ...(row.curve as { kind: 'spiral' } & Row['curve']), shape } })
+        .points[1] as Vec2;
+    expect(middle(1).x).toBeCloseTo(60, 9);
+    // radius 100 · 0.5² from the centre at x = 10
+    expect(middle(2).x).toBeCloseTo(35, 9);
+  });
+
+  it('by distance: the same distance along the curve', () => {
+    const { points } = rowNails(spiral({ mode: 'distance', distance: 10 }, 0));
+    expect(points).toHaveLength(11);
+    points.forEach((point, index) => expect(point.x).toBeCloseTo(110 - 10 * index, 6));
+    const curled = rowNails(spiral({ mode: 'distance', distance: 10 }, 720)).points;
+    const gaps = curled.slice(1).map((point, index) => distance(curled[index] as Vec2, point));
+    // Chords of a curve are a little shorter than the distance along it,
+    // most of all where the spiral is tight.
+    // The distance is adjusted so that the row is filled evenly.
+    for (const gap of gaps) expect(gap).toBeLessThan(10.5);
+    expect(gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length).toBeGreaterThan(9.5);
   });
 });
 
