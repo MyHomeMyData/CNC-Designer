@@ -163,25 +163,27 @@ its centre in the middle of the workpiece.
 
 The quickest start is a template. Each has a few settings of its own:
 
-| Template            | What it is                                                                                                                              | Settings                                                                                                           |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Circle with axes    | A circle with two axes, a star inside and curves at the rim                                                                             | Radius, nails per row                                                                                              |
-| Parabola star       | A star outline of triangles that point outwards                                                                                         | Number of triangles, outer radius, triangle height, nails per leg                                                  |
-| Spokes and tangents | Spokes around the centre and, between them, rows that touch a circle; two colours take turns                                            | Number of spokes, where they begin and end, radius of the circle the other rows touch, their length, nails per row |
-| Twisted polygons    | Polygons inside each other, each a little smaller and turned further; their corners stand on spirals, and the sides wrap curved spirals | Corners, outer and inner side length, turn, nails per spiral, direction                                            |
-| Cardioid            | A times table on a circle; factor 2 gives a heart-shaped curve                                                                          | Radius, nails, factor                                                                                              |
+| Template            | What it is                                                                                                                              | Settings                                                                                                               |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Circle with axes    | A circle with two axes, a star inside and curves at the rim                                                                             | Radius, nails per row                                                                                                  |
+| Parabola star       | A star outline of triangles that point outwards                                                                                         | Number of triangles, outer radius, triangle height, nails per leg                                                      |
+| Spokes and tangents | Spokes around the centre and, between them, rows that touch a circle; two colours take turns                                            | Number of spokes, where they begin and end, radius of the circle the other rows touch, their length, nails per row     |
+| Twisted polygons    | Polygons inside each other, each a little smaller and turned further; their corners stand on spirals, and the sides wrap curved spirals | Corners, outer and inner side length, turn, nails per spiral, evenly spaced nails, outer and inner distance, direction |
+| Cardioid            | A times table on a circle; factor 2 gives a heart-shaped curve                                                                          | Radius, nails, factor                                                                                                  |
 
 In _Spokes and tangents_ every thread runs there and back. With _One thread
 per colour_ the fans at the rim and the star in the middle are strung with
 a single thread per colour instead of two; the lines are the same.
 
 _Twisted polygons_ follows a piece with 50 nails per spiral, sides from
-270 mm down to 14 mm and nails 12 mm apart outside and 3 mm inside. Choosing
-it sets _Smallest distance_ to 3 mm and _Nail diameter_ to 1.2 mm. The sides
-shrink by the same amount from one polygon to the next. The thread starts
-at the innermost nail and goes round the spirals outwards, nail after
-nail, so the last knot is tied at the outside, where there is room for it. The panel shows how
-far apart the nails stand at the outside and at the inside.
+270 mm down to 14 mm and spirals that turn by 315°. The first 12 nails of a
+spiral stand 12 mm apart; after that the distance shrinks by the same factor
+from nail to nail, down to 3 mm at the inside. How fast the spirals close in
+is chosen so that these distances come out; the panel shows the distances
+as they are, and a warning if they cannot be reached. Choosing the template
+sets _Smallest distance_ to 3 mm and _Nail diameter_ to 1.2 mm. The thread
+starts at the innermost nail and goes round the spirals outwards, nail after
+nail, so the last knot is tied at the outside, where there is room for it.
 
 Changing a template setting builds rows and threads anew and keeps the
 names, colours and visibility of the threads.
@@ -195,10 +197,14 @@ disappear.
 
 - A **row of nails** follows a straight line, a circle or ellipse (or a
   part of one), a polygon or a spiral. Nails are spread evenly, by number or by
-  distance. Coordinates are relative to the layer position. On a spiral the
-  distance from the centre changes evenly with the angle; a number of nails
-  stand at equal steps of the angle, so they come closer together towards
-  the centre.
+  distance. Coordinates are relative to the layer position. On a spiral,
+  _Shape_ 1 lets the distance from the centre change evenly with the angle;
+  above 1 it closes in faster at the start. A number of nails stand at equal
+  steps of the angle, so they come closer together towards the centre.
+  On straight lines and spirals, _Number, closer at the end_ keeps the first
+  nails (_Evenly spaced_) at the same distance and then shrinks the
+  distance by the same factor from nail to nail, down to _Last distance_
+  times the first.
 - **Repetitions** turns all rows that many times around the layer
   position. Nails that fall on the same spot become one nail.
 - A **thread** has a name and a colour and consists of **parts**. A part

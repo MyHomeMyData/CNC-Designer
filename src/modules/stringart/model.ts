@@ -38,9 +38,11 @@ const curveSchema = z.discriminatedUnion('kind', [
     rotation: finite,
   }),
   /**
-   * A spiral around (`cx`, `cy`) whose distance from the centre changes
-   * evenly with the angle: from `r1` at the angle `start` to `r2` after
-   * turning by `turn` degrees (counter-clockwise if positive). An open row.
+   * A spiral around (`cx`, `cy`) from the distance `r1` at the angle
+   * `start` to `r2` after turning by `turn` degrees (counter-clockwise if
+   * positive). An open row. With `shape` 1 the distance changes evenly
+   * with the angle; above 1 it shrinks faster at the start and slower
+   * towards the end, below 1 the other way round.
    */
   z.strictObject({
     kind: z.literal('spiral'),
@@ -50,6 +52,7 @@ const curveSchema = z.discriminatedUnion('kind', [
     r2: finite.min(0),
     start: finite,
     turn: finite,
+    shape: positive.default(1),
   }),
 ]);
 
@@ -57,6 +60,18 @@ const curveSchema = z.discriminatedUnion('kind', [
 const spacingSchema = z.discriminatedUnion('mode', [
   z.strictObject({ mode: z.literal('count'), count: z.number().int().min(2).max(2000) }),
   z.strictObject({ mode: z.literal('distance'), distance: positive }),
+  /**
+   * `count` nails; the first `even` of them stand at the same distance from
+   * each other, then the distance shrinks by the same factor from nail to
+   * nail, down to `ratio` times the first distance between the last two.
+   * Distances are taken along the curve. Only on straight lines and spirals.
+   */
+  z.strictObject({
+    mode: z.literal('taper'),
+    count: z.number().int().min(2).max(2000),
+    even: z.number().int().min(1),
+    ratio: positive,
+  }),
 ]);
 
 const rowSchema = z.strictObject({
@@ -154,9 +169,9 @@ const templateSchema = z.discriminatedUnion('id', [
    * Regular polygons, one inside the other, each a little smaller and
    * turned a little further. Their corners stand on spirals, one per
    * corner, with `nails` nails each. `outer` and `inner` are the side
-   * lengths of the outermost and the innermost polygon; the sides shrink
-   * evenly from one to the next. `turn` is the angle the innermost polygon
-   * is turned by against the outermost.
+   * lengths of the outermost and the innermost polygon, `turn` is the angle
+   * a spiral turns by from its first nail to its last. How fast the spirals
+   * close in follows from the distances between the nails.
    */
   z.strictObject({
     id: z.literal('twisted-polygons'),
@@ -165,6 +180,12 @@ const templateSchema = z.discriminatedUnion('id', [
     inner: positive,
     turn: finite,
     nails: z.number().int().min(2).max(500),
+    /** The first `even` nails of a spiral stand at the same distance `outerGap`. */
+    even: z.number().int().min(1),
+    /** Distance between the first two nails of a spiral, in mm. */
+    outerGap: positive,
+    /** Distance between the last two nails, in mm; it shrinks evenly towards it. */
+    innerGap: positive,
     clockwise: z.boolean(),
   }),
   /** A times table on a circle: nail i goes to nail `factor` × i. */

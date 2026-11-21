@@ -1,5 +1,5 @@
 import { distance, type Vec2 } from '../../core/geometry/index.ts';
-import type { Curve, Row, StringArtParams } from './model.ts';
+import type { Curve, NailSpacing, Row, StringArtParams } from './model.ts';
 
 /** Nails closer than this are one and the same nail, in mm. */
 export const MERGE_TOLERANCE = 0.01;
@@ -34,6 +34,11 @@ export interface RowNails {
 
 /** Number of gaps between nails for a stretch of the given length. */
 function gapCount(length: number, row: Row, closed: boolean, pieces = 1): number {
+  // A tapering row is spread by number where it cannot taper.
+  if (row.nails.mode === 'taper') {
+    const gaps = closed ? row.nails.count : row.nails.count - 1;
+    return Math.max(1, Math.round(gaps / pieces));
+  }
   if (row.nails.mode === 'distance') {
     return Math.max(1, Math.round(length / pieces / row.nails.distance));
   }
@@ -45,6 +50,12 @@ function gapCount(length: number, row: Row, closed: boolean, pieces = 1): number
 function segmentNails(curve: Extract<Curve, { kind: 'segment' }>, row: Row): RowNails {
   const from = { x: curve.x1, y: curve.y1 };
   const to = { x: curve.x2, y: curve.y2 };
+  if (row.nails.mode === 'taper') {
+    return {
+      points: taperShares(row.nails).map((share) => between(from, to, share)),
+      closed: false,
+    };
+  }
   const gaps = gapCount(distance(from, to), row, false);
   const points: Vec2[] = [];
   for (let i = 0; i <= gaps; i++) points.push(between(from, to, i / gaps));
@@ -123,23 +134,27 @@ function arcNails(curve: Extract<Curve, { kind: 'arc' }>, row: Row): RowNails {
 }
 
 /**
- * On a spiral, a number of nails stand at equal steps of the angle, so
- * they come closer together where the spiral runs nearer to its centre.
- * A distance between nails is kept along the curve.
+ * Where the nails of a tapering row stand, as shares of the whole length:
+ * the first `even` nails at the same distance, then each distance `factor`
+ * times the one before, so that the last one is `ratio` times the first.
  */
-function spiralNails(curve: Extract<Curve, { kind: 'spiral' }>, row: Row): RowNails {
-  const { cx, cy, r1, r2, start, turn } = curve;
-  const at = (t: number): Vec2 => {
-    const radius = r1 + (r2 - r1) * t;
-    const angle = start + turn * t;
-    return { x: cx + radius * cosDeg(angle), y: cy + radius * sinDeg(angle) };
-  };
-  if (row.nails.mode === 'count') {
-    const gaps = row.nails.count - 1;
-    const points: Vec2[] = [];
-    for (let i = 0; i <= gaps; i++) points.push(at(i / gaps));
-    return { points, closed: false };
-  }
+export function taperShares(spacing: Extract<NailSpacing, { mode: 'taper' }>): number[] {
+  const gaps = spacing.count - 1;
+  // Distances that stay the same; the first distance always counts as one of them.
+  const same = Math.min(Math.max(spacing.even - 1, 1), gaps);
+  const steps = gaps - same;
+  const factor = steps > 0 ? spacing.ratio ** (1 / steps) : 1;
+  const sizes: number[] = [];
+  for (let i = 0; i < gaps; i++) sizes.push(i < same ? 1 : factor ** (i - same + 1));
+  const total = sizes.reduce((sum, size) => sum + size, 0);
+  const shares = [0];
+  for (const size of sizes) shares.push((shares[shares.length - 1] as number) + size / total);
+  shares[shares.length - 1] = 1;
+  return shares;
+}
+
+/** Points at the given shares of the length of the curve `at(t)`, t from 0 to 1. */
+function alongCurve(at: (t: number) => Vec2, shares: readonly number[]): Vec2[] {
   const lengths = [0];
   let previous = at(0);
   for (let i = 1; i <= ARC_SAMPLES; i++) {
@@ -148,18 +163,54 @@ function spiralNails(curve: Extract<Curve, { kind: 'spiral' }>, row: Row): RowNa
     previous = point;
   }
   const total = lengths[ARC_SAMPLES] as number;
-  const gaps = gapCount(total, row, false);
-  const points: Vec2[] = [at(0)];
   let sample = 0;
-  for (let i = 1; i < gaps; i++) {
-    const wanted = (total * i) / gaps;
+  return shares.map((share) => {
+    if (share <= 0) return at(0);
+    if (share >= 1) return at(1);
+    const wanted = total * share;
     while (sample < ARC_SAMPLES - 1 && (lengths[sample + 1] as number) < wanted) sample++;
     const low = lengths[sample] as number;
     const high = lengths[sample + 1] as number;
-    points.push(at((sample + (high > low ? (wanted - low) / (high - low) : 0)) / ARC_SAMPLES));
+    return at((sample + (high > low ? (wanted - low) / (high - low) : 0)) / ARC_SAMPLES);
+  });
+}
+
+/** The point at `t` (0 to 1) of a spiral. */
+export function spiralPoint(curve: Extract<Curve, { kind: 'spiral' }>, t: number): Vec2 {
+  const { cx, cy, r1, r2, start, turn, shape } = curve;
+  const radius = r2 + (r1 - r2) * (1 - t) ** shape;
+  const angle = start + turn * t;
+  return { x: cx + radius * cosDeg(angle), y: cy + radius * sinDeg(angle) };
+}
+
+/**
+ * On a spiral, a number of nails stand at equal steps of the angle, so
+ * they come closer together where the spiral runs nearer to its centre.
+ * A distance between nails, and a tapering row, are measured along the curve.
+ */
+function spiralNails(curve: Extract<Curve, { kind: 'spiral' }>, row: Row): RowNails {
+  const at = (t: number) => spiralPoint(curve, t);
+  const spacing = row.nails;
+  if (spacing.mode === 'count') {
+    const gaps = spacing.count - 1;
+    const points: Vec2[] = [];
+    for (let i = 0; i <= gaps; i++) points.push(at(i / gaps));
+    return { points, closed: false };
   }
-  points.push(at(1));
-  return { points, closed: false };
+  if (spacing.mode === 'taper') {
+    return { points: alongCurve(at, taperShares(spacing)), closed: false };
+  }
+  let length = 0;
+  let previous = at(0);
+  for (let i = 1; i <= ARC_SAMPLES; i++) {
+    const point = at(i / ARC_SAMPLES);
+    length += distance(previous, point);
+    previous = point;
+  }
+  const gaps = gapCount(length, row, false);
+  const shares: number[] = [];
+  for (let i = 0; i <= gaps; i++) shares.push(i / gaps);
+  return { points: alongCurve(at, shares), closed: false };
 }
 
 /** The nails of a row before repetition, evenly spread along its curve. */
@@ -265,8 +316,10 @@ export function layoutNails(
     const grid = new PointGrid(params.minSpacing);
     for (const nail of nails) {
       for (const other of grid.near(nail)) {
-        // A tiny allowance, so nails set exactly at the minimum are accepted.
-        if (distance(nails[other] as Nail, nail) < params.minSpacing - 1e-6) {
+        // An allowance of a hundredth of a millimetre, far below what can be
+        // drilled: nails meant to stand at the minimum are accepted even if
+        // measuring along a curve leaves them a hair closer.
+        if (distance(nails[other] as Nail, nail) < params.minSpacing - MERGE_TOLERANCE) {
           tooClose.push([other, nail.id]);
         }
       }

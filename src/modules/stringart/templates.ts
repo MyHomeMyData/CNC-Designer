@@ -1,4 +1,6 @@
-import type { Row, StringArtParams, Template, Thread, ThreadPart } from './model.ts';
+import { distance, type Vec2 } from '../../core/geometry/index.ts';
+import type { NailSpacing, Row, StringArtParams, Template, Thread, ThreadPart } from './model.ts';
+import { rowNails, spiralPoint, taperShares } from './nails.ts';
 
 const BOARD = '#1c1c1e';
 const BLUE = '#1f9fc4';
@@ -205,33 +207,86 @@ function spokesAndTangents(template: Extract<Template, { id: 'spokes-tangents' }
   };
 }
 
+type Twisted = Extract<Template, { id: 'twisted-polygons' }>;
+
+/** The spiral of the twisted polygons with a given shape, before its nails are placed. */
+function twistSpiral(template: Twisted, shape: number): Extract<Row['curve'], { kind: 'spiral' }> {
+  // A side is the chord between two neighbouring corners.
+  const toRadius = (side: number) => side / (2 * Math.sin(Math.PI / template.corners));
+  return {
+    kind: 'spiral',
+    cx: 0,
+    cy: 0,
+    r1: toRadius(template.outer),
+    r2: toRadius(template.inner),
+    // The first polygon stands on one of its corners.
+    start: 90,
+    turn: template.clockwise ? -template.turn : template.turn,
+    shape,
+  };
+}
+
+function twistSpacing(template: Twisted): Extract<NailSpacing, { mode: 'taper' }> {
+  return {
+    mode: 'taper',
+    count: template.nails,
+    even: template.even,
+    ratio: template.innerGap / template.outerGap,
+  };
+}
+
+/** Length of a spiral, measured in many short pieces. */
+function spiralLength(curve: Extract<Row['curve'], { kind: 'spiral' }>): number {
+  let length = 0;
+  let previous = spiralPoint(curve, 0);
+  for (let i = 1; i <= 1024; i++) {
+    const point = spiralPoint(curve, i / 1024);
+    length += Math.hypot(point.x - previous.x, point.y - previous.y);
+    previous = point;
+  }
+  return length;
+}
+
+/** Shapes that are tried: from slowly to quickly closing in at the outside. */
+const SHAPES = { lowest: 0.1, highest: 20 };
+
+/**
+ * The shape of the spirals: how fast they close in from the outside. It is
+ * chosen so that the nails stand `outerGap` apart at the outside, given the
+ * way the distance shrinks towards the inside. A spiral that closes in
+ * quickly is shorter, so the shape is found by halving the range.
+ */
+function twistShape(template: Twisted): number {
+  const shares = taperShares(twistSpacing(template));
+  // The length the spiral needs so that the first distance is `outerGap`.
+  const wanted = template.outerGap / (shares[1] ?? 1);
+  let low = SHAPES.lowest;
+  let high = SHAPES.highest;
+  for (let i = 0; i < 40; i++) {
+    const middle = Math.sqrt(low * high);
+    if (spiralLength(twistSpiral(template, middle)) > wanted) low = middle;
+    else high = middle;
+  }
+  return Math.round(Math.sqrt(low * high) * 1000) / 1000;
+}
+
 /** What follows from the parameters of the twisted polygons, in mm. */
-export function twistGeometry(template: Extract<Template, { id: 'twisted-polygons' }>): {
-  /** Distance of the outermost and the innermost corners from the centre. */
-  readonly outerRadius: number;
-  readonly innerRadius: number;
-  /** Distance between the first two and the last two nails of a spiral. */
+export function twistGeometry(template: Twisted): {
+  /** How fast the spirals close in; 1 is evenly with the angle. */
+  readonly shape: number;
+  /** Distance between the first two and the last two nails of a spiral, as they come out. */
   readonly outerGap: number;
   readonly innerGap: number;
 } {
-  const { corners, outer, inner, turn, nails } = template;
-  // A side is the chord between two neighbouring corners.
-  const toRadius = (side: number) => side / (2 * Math.sin(Math.PI / corners));
-  const outerRadius = toRadius(outer);
-  const innerRadius = toRadius(inner);
-  const steps = Math.max(1, nails - 1);
-  const step = (turn * Math.PI) / 180 / steps;
-  const shrink = (outerRadius - innerRadius) / steps;
-  const gap = (radius: number) => {
-    const next = radius - shrink;
-    return Math.sqrt(Math.max(0, radius ** 2 + next ** 2 - 2 * radius * next * Math.cos(step)));
-  };
-  return {
-    outerRadius,
-    innerRadius,
-    outerGap: gap(outerRadius),
-    innerGap: gap(innerRadius + shrink),
-  };
+  const shape = twistShape(template);
+  const { points } = rowNails({
+    id: 'spiral',
+    name: 'Spiral',
+    curve: twistSpiral(template, shape),
+    nails: twistSpacing(template),
+  });
+  const gap = (a: number, b: number) => distance(points.at(a) as Vec2, points.at(b) as Vec2);
+  return { shape, outerGap: gap(0, 1), innerGap: gap(-2, -1) };
 }
 
 /**
@@ -242,25 +297,16 @@ export function twistGeometry(template: Extract<Template, { id: 'twisted-polygon
  * The curves that appear are not strung themselves: the lines wrap them.
  */
 function twistedPolygons(template: Extract<Template, { id: 'twisted-polygons' }>): Built {
-  const { corners, turn, nails, clockwise } = template;
-  const { outerRadius, innerRadius } = twistGeometry(template);
+  const { corners, clockwise } = template;
   const round = (value: number) => Math.round(value * 1000) / 1000 + 0;
+  const curve = twistSpiral(template, twistShape(template));
   return {
     rows: [
       {
         id: 'spiral',
         name: 'Spiral',
-        curve: {
-          kind: 'spiral',
-          cx: 0,
-          cy: 0,
-          r1: round(outerRadius),
-          r2: round(innerRadius),
-          // The first polygon stands on one of its corners.
-          start: 90,
-          turn: clockwise ? -turn : turn,
-        },
-        nails: { mode: 'count', count: nails },
+        curve: { ...curve, r1: round(curve.r1), r2: round(curve.r2) },
+        nails: twistSpacing(template),
       },
     ],
     repeat: corners,
@@ -378,15 +424,18 @@ export const TEMPLATES: readonly {
     },
     {
       name: 'Twisted polygons',
-      // As built by Jürgen: sides 270 mm outside and 14 mm inside, nails
-      // 12 mm apart outside and 3 mm inside.
+      // As built by Jürgen: sides 270 mm outside and 14 mm inside, spirals
+      // turning by 315°, the first 12 nails 12 mm apart, 3 mm at the inside.
       defaults: {
         id: 'twisted-polygons',
         corners: 3,
         outer: 270,
         inner: 14,
-        turn: 210,
+        turn: 315,
         nails: 50,
+        even: 12,
+        outerGap: 12,
+        innerGap: 3,
         clockwise: true,
       },
       settings: { minSpacing: 3, nailDiameter: 1.2 },

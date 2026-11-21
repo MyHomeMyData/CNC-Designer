@@ -304,7 +304,7 @@ test('design string art from a template and export the drilling program', async 
   await expect(page.getByText('150 nails to drill.')).toBeVisible();
   await expect(page.getByLabel('Smallest distance', { exact: true })).toHaveValue('3');
   await expect(
-    page.getByText('Nails 11.9 mm apart at the outside, 3.1 mm at the inside.'),
+    page.getByText('Nails 12.0 mm apart at the outside, 3.0 mm at the inside.'),
   ).toBeVisible();
   await setNumber(page, 'Corners', 4);
   await expect(page.getByText('200 nails to drill.')).toBeVisible();

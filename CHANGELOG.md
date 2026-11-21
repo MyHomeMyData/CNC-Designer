@@ -2,10 +2,15 @@
 
 ## Unreleased
 
-- String art: rows of nails on spirals, and the template _Twisted
-  polygons_: polygons that shrink and turn towards the centre, with nail
-  settings of their own (3 mm smallest distance, 1.2 mm nails), strung
-  from the innermost nail outwards
+- String art: rows of nails on spirals, with a shape that sets how fast
+  they close in, and rows whose nails come closer together towards the end
+- String art: the template _Twisted polygons_: polygons that shrink and
+  turn towards the centre, after a real piece (315° turn, 12 evenly spaced
+  nails 12 mm apart, 3 mm at the inside), with nail settings of their own
+  (3 mm smallest distance, 1.2 mm nails), strung from the innermost nail
+  outwards
+- String art: nails a hundredth of a millimetre closer than the smallest
+  distance are no longer reported
 - String art: threads can run round the repetitions: the same nail in each
   repetition in turn, then the next nail
 - String art: a new layer starts in the middle of the workpiece instead of
