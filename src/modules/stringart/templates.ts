@@ -205,6 +205,72 @@ function spokesAndTangents(template: Extract<Template, { id: 'spokes-tangents' }
   };
 }
 
+/** What follows from the parameters of the twisted polygons, in mm. */
+export function twistGeometry(template: Extract<Template, { id: 'twisted-polygons' }>): {
+  /** Distance of the outermost and the innermost corners from the centre. */
+  readonly outerRadius: number;
+  readonly innerRadius: number;
+  /** Distance between the first two and the last two nails of a spiral. */
+  readonly outerGap: number;
+  readonly innerGap: number;
+} {
+  const { corners, outer, inner, turn, nails } = template;
+  // A side is the chord between two neighbouring corners.
+  const toRadius = (side: number) => side / (2 * Math.sin(Math.PI / corners));
+  const outerRadius = toRadius(outer);
+  const innerRadius = toRadius(inner);
+  const steps = Math.max(1, nails - 1);
+  const step = (turn * Math.PI) / 180 / steps;
+  const shrink = (outerRadius - innerRadius) / steps;
+  const gap = (radius: number) => {
+    const next = radius - shrink;
+    return Math.sqrt(Math.max(0, radius ** 2 + next ** 2 - 2 * radius * next * Math.cos(step)));
+  };
+  return {
+    outerRadius,
+    innerRadius,
+    outerGap: gap(outerRadius),
+    innerGap: gap(innerRadius + shrink),
+  };
+}
+
+/**
+ * Polygons that turn and shrink towards the centre. The corners of each
+ * stand on spirals; every nail of a spiral is joined to the nail with the
+ * same number on the next spiral. The curves that appear are not strung
+ * themselves: the straight sides wrap them.
+ */
+function twistedPolygons(template: Extract<Template, { id: 'twisted-polygons' }>): Built {
+  const { corners, turn, nails, clockwise } = template;
+  const { outerRadius, innerRadius } = twistGeometry(template);
+  const round = (value: number) => Math.round(value * 1000) / 1000 + 0;
+  return {
+    rows: [
+      {
+        id: 'spiral',
+        name: 'Spiral',
+        curve: {
+          kind: 'spiral',
+          cx: 0,
+          cy: 0,
+          r1: round(outerRadius),
+          r2: round(innerRadius),
+          // The first polygon stands on one of its corners.
+          start: 90,
+          turn: clockwise ? -turn : turn,
+        },
+        nails: { mode: 'count', count: nails },
+      },
+    ],
+    repeat: corners,
+    threads: [
+      thread('sides', 'Sides', ORANGE, [
+        newPart('spiral', 'spiral', { toCopy: 1, reverse: false }),
+      ]),
+    ],
+  };
+}
+
 /** A times table on a circle; with the factor 2 its lines wrap a heart-shaped curve. */
 function cardioid(template: Extract<Template, { id: 'cardioid' }>): Built {
   const { radius, nails, factor } = template;
@@ -234,6 +300,8 @@ function build(template: Template): Built {
       return parabolaStar(template);
     case 'spokes-tangents':
       return spokesAndTangents(template);
+    case 'twisted-polygons':
+      return twistedPolygons(template);
     case 'cardioid':
       return cardioid(template);
   }
@@ -242,13 +310,16 @@ function build(template: Template): Built {
 /**
  * The design with rows, threads and repetitions built anew from `template`.
  * Names, colours and visibility of threads the design already has are kept, and
- * so are the settings that do not belong to the template.
+ * so are the settings that do not belong to the template, except those a
+ * newly chosen template brings along.
  */
 export function applyTemplate(params: StringArtParams, template: Template): StringArtParams {
   const built = build(template);
   const same = params.template?.id === template.id;
   return {
     ...params,
+    // A newly chosen template brings its own nail settings, if it has any.
+    ...(same ? {} : settingsOf(template)),
     ...built,
     template,
     threads: built.threads.map((fresh) => {
@@ -261,13 +332,22 @@ export function applyTemplate(params: StringArtParams, template: Template): Stri
 }
 
 function create(template: Template): StringArtParams {
-  return { ...base, template, ...build(template) };
+  return { ...base, ...settingsOf(template), template, ...build(template) };
 }
+
+/** The settings a template brings along; looked up late, as the list is defined below. */
+function settingsOf(template: Template): Settings {
+  return TEMPLATES.find((entry) => entry.id === template.id)?.settings ?? {};
+}
+
+/** Settings a template brings along when it is chosen, instead of the usual ones. */
+type Settings = Partial<Pick<StringArtParams, 'minSpacing' | 'nailDiameter'>>;
 
 export const TEMPLATES: readonly {
   readonly id: Template['id'];
   readonly name: string;
   readonly defaults: Template;
+  readonly settings: Settings;
   readonly create: () => StringArtParams;
 }[] = (
   [
@@ -290,9 +370,30 @@ export const TEMPLATES: readonly {
         joined: false,
       },
     },
+    {
+      name: 'Twisted polygons',
+      // As built by Jürgen: sides 270 mm outside and 14 mm inside, nails
+      // 12 mm apart outside and 3 mm inside.
+      defaults: {
+        id: 'twisted-polygons',
+        corners: 3,
+        outer: 270,
+        inner: 14,
+        turn: 210,
+        nails: 50,
+        clockwise: true,
+      },
+      settings: { minSpacing: 3, nailDiameter: 1.2 },
+    },
     { name: 'Cardioid', defaults: { id: 'cardioid', radius: 200, nails: 120, factor: 2 } },
   ] as const
-).map((entry) => ({ ...entry, id: entry.defaults.id, create: () => create(entry.defaults) }));
+).map((entry: { name: string; defaults: Template; settings?: Settings }) => ({
+  name: entry.name,
+  id: entry.defaults.id,
+  defaults: entry.defaults,
+  settings: entry.settings ?? {},
+  create: () => create(entry.defaults),
+}));
 
 export const DEFAULT_STRING_ART = (): StringArtParams =>
   create({ id: 'circle-axes', radius: 200, nails: 26 });

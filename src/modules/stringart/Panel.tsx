@@ -15,7 +15,7 @@ import {
   type ThreadPart,
 } from './model.ts';
 import { rowNails } from './nails.ts';
-import { applyTemplate, newPart, starGeometry, TEMPLATES } from './templates.ts';
+import { applyTemplate, newPart, starGeometry, TEMPLATES, twistGeometry } from './templates.ts';
 
 type CurveKind = Curve['kind'];
 
@@ -23,12 +23,14 @@ const CURVE_OPTIONS: readonly { value: CurveKind; label: string }[] = [
   { value: 'segment', label: 'Straight line' },
   { value: 'arc', label: 'Circle or ellipse' },
   { value: 'polygon', label: 'Polygon' },
+  { value: 'spiral', label: 'Spiral' },
 ];
 
 const CURVE_DEFAULTS: { readonly [K in CurveKind]: Extract<Curve, { kind: K }> } = {
   segment: { kind: 'segment', x1: 0, y1: 0, x2: 200, y2: 0 },
   arc: { kind: 'arc', cx: 0, cy: 0, rx: 200, ry: 200, start: 0, end: 360 },
   polygon: { kind: 'polygon', cx: 0, cy: 0, radius: 200, sides: 6, rotation: 0 },
+  spiral: { kind: 'spiral', cx: 0, cy: 0, r1: 200, r2: 20, start: 90, turn: -360 },
 };
 
 /** Named rules; each sets the numbers of the general rule. */
@@ -156,6 +158,21 @@ function CurveFields(props: { readonly curve: Curve; readonly onChange: (curve: 
           {number('Radius', curve.radius, (radius) => ({ ...curve, radius }))}
           {number('Sides', curve.sides, (sides) => ({ ...curve, sides: Math.round(sides) }), '')}
           {number('First corner at', curve.rotation, (rotation) => ({ ...curve, rotation }), '°')}
+        </>
+      );
+    case 'spiral':
+      return (
+        <>
+          {number('Centre X', curve.cx, (cx) => ({ ...curve, cx }))}
+          {number('Centre Y', curve.cy, (cy) => ({ ...curve, cy }))}
+          {number('Start radius', curve.r1, (r1) => ({ ...curve, r1: Math.max(0, r1) }))}
+          {number('End radius', curve.r2, (r2) => ({ ...curve, r2: Math.max(0, r2) }))}
+          {number('Start angle', curve.start, (start) => ({ ...curve, start }), '°')}
+          {number('Turn', curve.turn, (turn) => ({ ...curve, turn }), '°')}
+          <p className="hint">
+            Turns counter-clockwise for a positive angle. A number of nails stand at equal steps of
+            the angle; a distance is kept along the spiral.
+          </p>
         </>
       );
   }
@@ -552,6 +569,56 @@ function TemplateFields(props: {
           />
         </>
       );
+    case 'twisted-polygons': {
+      const { outerGap, innerGap } = twistGeometry(template);
+      return (
+        <>
+          <NumberField
+            label="Corners"
+            title="3 for triangles, 4 for squares and so on"
+            value={template.corners}
+            onCommit={(corners) => onChange({ ...template, corners: whole(corners) })}
+          />
+          <NumberField
+            label="Outer side"
+            unit="mm"
+            title="Length of a side of the outermost polygon"
+            value={template.outer}
+            onCommit={(outer) => onChange({ ...template, outer })}
+          />
+          <NumberField
+            label="Inner side"
+            unit="mm"
+            title="Length of a side of the innermost polygon"
+            value={template.inner}
+            onCommit={(inner) => onChange({ ...template, inner })}
+          />
+          <NumberField
+            label="Turn"
+            unit="°"
+            title="How far the innermost polygon is turned against the outermost"
+            value={template.turn}
+            onCommit={(turn) => onChange({ ...template, turn })}
+          />
+          <NumberField
+            label="Nails per spiral"
+            title="One spiral per corner; each nail is a corner of one polygon"
+            value={template.nails}
+            onCommit={(nails) => onChange({ ...template, nails: whole(nails) })}
+          />
+          <CheckField
+            label="Turn clockwise"
+            title="Direction in which the polygons turn from the outside in"
+            checked={template.clockwise}
+            onChange={(clockwise) => onChange({ ...template, clockwise })}
+          />
+          <p className="hint">
+            Nails {outerGap.toFixed(1)} mm apart at the outside, {innerGap.toFixed(1)} mm at the
+            inside.
+          </p>
+        </>
+      );
+    }
     case 'cardioid':
       return (
         <>

@@ -122,6 +122,46 @@ function arcNails(curve: Extract<Curve, { kind: 'arc' }>, row: Row): RowNails {
   return { points, closed };
 }
 
+/**
+ * On a spiral, a number of nails stand at equal steps of the angle, so
+ * they come closer together where the spiral runs nearer to its centre.
+ * A distance between nails is kept along the curve.
+ */
+function spiralNails(curve: Extract<Curve, { kind: 'spiral' }>, row: Row): RowNails {
+  const { cx, cy, r1, r2, start, turn } = curve;
+  const at = (t: number): Vec2 => {
+    const radius = r1 + (r2 - r1) * t;
+    const angle = start + turn * t;
+    return { x: cx + radius * cosDeg(angle), y: cy + radius * sinDeg(angle) };
+  };
+  if (row.nails.mode === 'count') {
+    const gaps = row.nails.count - 1;
+    const points: Vec2[] = [];
+    for (let i = 0; i <= gaps; i++) points.push(at(i / gaps));
+    return { points, closed: false };
+  }
+  const lengths = [0];
+  let previous = at(0);
+  for (let i = 1; i <= ARC_SAMPLES; i++) {
+    const point = at(i / ARC_SAMPLES);
+    lengths.push((lengths[i - 1] as number) + distance(previous, point));
+    previous = point;
+  }
+  const total = lengths[ARC_SAMPLES] as number;
+  const gaps = gapCount(total, row, false);
+  const points: Vec2[] = [at(0)];
+  let sample = 0;
+  for (let i = 1; i < gaps; i++) {
+    const wanted = (total * i) / gaps;
+    while (sample < ARC_SAMPLES - 1 && (lengths[sample + 1] as number) < wanted) sample++;
+    const low = lengths[sample] as number;
+    const high = lengths[sample + 1] as number;
+    points.push(at((sample + (high > low ? (wanted - low) / (high - low) : 0)) / ARC_SAMPLES));
+  }
+  points.push(at(1));
+  return { points, closed: false };
+}
+
 /** The nails of a row before repetition, evenly spread along its curve. */
 export function rowNails(row: Row): RowNails {
   switch (row.curve.kind) {
@@ -131,6 +171,8 @@ export function rowNails(row: Row): RowNails {
       return arcNails(row.curve, row);
     case 'polygon':
       return polygonNails(row.curve, row);
+    case 'spiral':
+      return spiralNails(row.curve, row);
   }
 }
 

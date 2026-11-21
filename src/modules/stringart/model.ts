@@ -37,6 +37,20 @@ const curveSchema = z.discriminatedUnion('kind', [
     sides: z.number().int().min(3).max(24),
     rotation: finite,
   }),
+  /**
+   * A spiral around (`cx`, `cy`) whose distance from the centre changes
+   * evenly with the angle: from `r1` at the angle `start` to `r2` after
+   * turning by `turn` degrees (counter-clockwise if positive). An open row.
+   */
+  z.strictObject({
+    kind: z.literal('spiral'),
+    cx: finite,
+    cy: finite,
+    r1: finite.min(0),
+    r2: finite.min(0),
+    start: finite,
+    turn: finite,
+  }),
 ]);
 
 /** How the nails are spread along the curve: a number of nails, or a distance between them. */
@@ -132,6 +146,23 @@ const templateSchema = z.discriminatedUnion('id', [
     nails: z.number().int().min(2).max(500),
     /** One thread per colour for fans and star together, instead of two. */
     joined: z.boolean().default(false),
+  }),
+  /**
+   * Regular polygons, one inside the other, each a little smaller and
+   * turned a little further. Their corners stand on spirals, one per
+   * corner, with `nails` nails each. `outer` and `inner` are the side
+   * lengths of the outermost and the innermost polygon; the sides shrink
+   * evenly from one to the next. `turn` is the angle the innermost polygon
+   * is turned by against the outermost.
+   */
+  z.strictObject({
+    id: z.literal('twisted-polygons'),
+    corners: z.number().int().min(3).max(12),
+    outer: positive,
+    inner: positive,
+    turn: finite,
+    nails: z.number().int().min(2).max(500),
+    clockwise: z.boolean(),
   }),
   /** A times table on a circle: nail i goes to nail `factor` × i. */
   z.strictObject({
