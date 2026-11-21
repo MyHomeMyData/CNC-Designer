@@ -47,6 +47,8 @@ export interface Scene {
   readonly toolpaths: readonly Toolpath[];
   readonly showResult: boolean;
   readonly showTravel: boolean;
+  /** Threads fully covering, as on the finished piece, instead of slightly see-through. */
+  readonly opaqueThreads: boolean;
 }
 
 /** Colours of the drawing, taken from the style sheet. */
@@ -161,8 +163,9 @@ function drawPreviews(ctx: Ctx, scene: Scene): void {
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
   ctx.setLineDash([]);
-  // Slightly translucent, so places where many lines cross look denser.
-  ctx.globalAlpha = 0.85;
+  // Slightly translucent, so places where many lines cross look denser and
+  // the way of each thread is easier to follow.
+  ctx.globalAlpha = scene.opaqueThreads ? 1 : 0.85;
   for (const layer of scene.layers) {
     for (const stroke of layer.preview?.strokes ?? []) {
       const [first, ...rest] = stroke.points;

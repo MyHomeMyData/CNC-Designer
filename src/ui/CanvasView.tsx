@@ -83,6 +83,7 @@ export function CanvasView(props: CanvasViewProps) {
   const [userView, setUserView] = useState<View | null>(null);
   const [showResult, setShowResult] = useState(true);
   const [showTravel, setShowTravel] = useState(true);
+  const [opaqueThreads, setOpaqueThreads] = useState(false);
   const [pointer, setPointer] = useState<Vec2 | null>(null);
   const [cursor, setCursor] = useState('grab');
   const [snap, setSnap] = useState<SnapSettings>(loadSnapSettings);
@@ -178,6 +179,7 @@ export function CanvasView(props: CanvasViewProps) {
         toolpaths,
         showResult,
         showTravel,
+        opaqueThreads,
       },
       readPalette(canvas),
     );
@@ -193,6 +195,7 @@ export function CanvasView(props: CanvasViewProps) {
     toolpaths,
     showResult,
     showTravel,
+    opaqueThreads,
   ]);
 
   function handleAt(pixel: Vec2): Handle | null {
@@ -320,6 +323,14 @@ export function CanvasView(props: CanvasViewProps) {
         </button>
         <CheckField label="Result preview" checked={showResult} onChange={setShowResult} />
         <CheckField label="Positioning moves" checked={showTravel} onChange={setShowTravel} />
+        {layers.some((layer) => (layer.preview?.strokes.length ?? 0) > 0) && (
+          <CheckField
+            label="Opaque threads"
+            title="Threads as they look on the finished piece; otherwise slightly see-through, so their way is easier to follow"
+            checked={opaqueThreads}
+            onChange={setOpaqueThreads}
+          />
+        )}
         <span
           className="snap"
           title="Moving a layer and pulling an edge stop at multiples of this distance. Hold Alt to move freely."

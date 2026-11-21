@@ -293,6 +293,13 @@ _Result preview_ draws every working move as wide as the tool, darker where
 it is deeper. _Positioning moves_ shows the moves at safe Z as dashed lines.
 It is a rough impression, not a simulation.
 
+String art layers show their threads in their colours, slightly
+see-through, so the way of each thread is easy to follow. _Opaque threads_
+(only there when the design has threads) draws them fully covering, as on
+the finished piece: a thread strung later hides the ones below it. The
+difference shows best when zoomed in, as a thread is thinner than a pixel
+when the whole work area is in view.
+
 ## G-code
 
 The _G-code_ tab lists one program per tool with path lengths, estimated
