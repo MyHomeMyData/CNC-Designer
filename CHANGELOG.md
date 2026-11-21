@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- String art: _Opaque threads_ below the drawing shows the threads fully
+  covering, as on the finished piece
 - String art: rows of nails on spirals, with a shape that sets how fast
   they close in, and rows whose nails come closer together towards the end
 - String art: the template _Twisted polygons_: polygons that shrink and

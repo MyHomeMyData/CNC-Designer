@@ -279,6 +279,11 @@ test('design string art from a template and export the drilling program', async 
 
   // the default is the circle with two axes
   await expect(page.getByText('197 nails to drill.')).toBeVisible();
+  // threads can be shown as they cover each other on the finished piece
+  const opaque = page.getByRole('checkbox', { name: 'Opaque threads' });
+  await expect(opaque).not.toBeChecked();
+  await opaque.check();
+  await expect(opaque).toBeChecked();
   await expect(page.getByText(/Star: [\d.]+ m of thread\./)).toBeVisible();
 
   // fewer repetitions, fewer nails; one undo brings them back
