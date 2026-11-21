@@ -67,6 +67,12 @@ const RULES: readonly {
     matches: (p) => p.mode === 'chain' && p.a === 1 && !p.reverse,
   },
   {
+    id: 'rounds',
+    label: 'Round the repetitions (spiral)',
+    apply: (part) => ({ ...part, to: part.from, mode: 'rounds', toCopy: Math.max(1, part.toCopy) }),
+    matches: (p) => p.mode === 'rounds',
+  },
+  {
     id: 'multiple',
     label: 'Multiple on one closed row (times table)',
     apply: (part) => ({
@@ -335,6 +341,7 @@ function PartEditor(props: {
         options={[
           { value: 'zigzag', label: 'There and back' },
           { value: 'chain', label: 'As a chain' },
+          { value: 'rounds', label: 'Round the repetitions' },
         ]}
         onChange={(mode) => onChange({ ...part, mode })}
       />

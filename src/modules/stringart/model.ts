@@ -78,9 +78,12 @@ const partSchema = z.strictObject({
   /**
    * `zigzag`: there and back between the two rows, moving on to the next
    * nail at each end. `chain`: on one closed row, each line starts where
-   * the last one ended.
+   * the last one ended. `rounds`: the same nail of the row `from` in every
+   * repetition in turn (going on by `toCopy` repetitions each time), then
+   * the next nail, and so on; with `reverse` the nails are counted from the
+   * far end of the row. A round goes through all repetitions at once.
    */
-  mode: z.enum(['zigzag', 'chain']),
+  mode: z.enum(['zigzag', 'chain', 'rounds']),
   a: z.number().int(),
   b: z.number().int(),
   /** Count the nails of `to` from its far end. */

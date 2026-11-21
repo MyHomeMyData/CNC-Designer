@@ -4,7 +4,10 @@
 
 - String art: rows of nails on spirals, and the template _Twisted
   polygons_: polygons that shrink and turn towards the centre, with nail
-  settings of their own (3 mm smallest distance, 1.2 mm nails)
+  settings of their own (3 mm smallest distance, 1.2 mm nails), strung
+  from the innermost nail outwards
+- String art: threads can run round the repetitions: the same nail in each
+  repetition in turn, then the next nail
 - String art: a new layer starts in the middle of the workpiece instead of
   at the zero point
 - The app is published on GitHub Pages:

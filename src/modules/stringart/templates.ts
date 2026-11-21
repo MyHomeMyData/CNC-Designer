@@ -235,10 +235,11 @@ export function twistGeometry(template: Extract<Template, { id: 'twisted-polygon
 }
 
 /**
- * Polygons that turn and shrink towards the centre. The corners of each
- * stand on spirals; every nail of a spiral is joined to the nail with the
- * same number on the next spiral. The curves that appear are not strung
- * themselves: the straight sides wrap them.
+ * Polygons that turn and shrink towards the centre. Their corners stand on
+ * spirals, one per corner. The thread starts at the innermost nail and
+ * goes round: the same nail on each spiral in turn, then on to the next
+ * nail outwards, so it ends at the outside where a knot is easy to tie.
+ * The curves that appear are not strung themselves: the lines wrap them.
  */
 function twistedPolygons(template: Extract<Template, { id: 'twisted-polygons' }>): Built {
   const { corners, turn, nails, clockwise } = template;
@@ -265,7 +266,12 @@ function twistedPolygons(template: Extract<Template, { id: 'twisted-polygons' }>
     repeat: corners,
     threads: [
       thread('sides', 'Sides', ORANGE, [
-        newPart('spiral', 'spiral', { toCopy: 1, reverse: false }),
+        newPart('spiral', 'spiral', {
+          mode: 'rounds',
+          // The round goes the way the spirals open outwards.
+          toCopy: clockwise ? 1 : corners - 1,
+          reverse: true,
+        }),
       ]),
     ],
   };

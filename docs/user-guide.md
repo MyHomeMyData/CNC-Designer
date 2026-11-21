@@ -178,7 +178,9 @@ a single thread per colour instead of two; the lines are the same.
 _Twisted polygons_ follows a piece with 50 nails per spiral, sides from
 270 mm down to 14 mm and nails 12 mm apart outside and 3 mm inside. Choosing
 it sets _Smallest distance_ to 3 mm and _Nail diameter_ to 1.2 mm. The sides
-shrink by the same amount from one polygon to the next. The panel shows how
+shrink by the same amount from one polygon to the next. The thread starts
+at the innermost nail and goes round the spirals outwards, nail after
+nail, so the last knot is tied at the outside, where there is room for it. The panel shows how
 far apart the nails stand at the outside and at the inside.
 
 Changing a template setting builds rows and threads anew and keeps the
@@ -211,6 +213,12 @@ disappear.
 - _Thread runs_ _there and back_ zigzags between two rows; _as a chain_
   works on one closed row, where each line starts at the nail the last one
   ended on.
+- _Thread runs_ _round the repetitions_ uses one row: the thread goes to
+  the same nail in each repetition in turn, then on to the next nail, so the
+  lines wind round the centre. _To repetition_ sets how many repetitions it
+  moves on each time (1 for counter-clockwise, one less than the number of
+  repetitions for clockwise); _Count the target row from its far end_
+  starts at the last nail.
 - A thread with several **colours** uses them in turn from repetition to
   repetition. Each colour is one piece of thread.
 - _Double: there and back_ strings every line twice, so the thread ends

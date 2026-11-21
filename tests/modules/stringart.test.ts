@@ -445,15 +445,6 @@ describe('templates', () => {
       expect(art.threads.length, template.id).toBeGreaterThan(0);
       // only the spokes cannot do without: the thread has to get from one spoke to the next
       if (template.id === 'spokes-tangents') continue;
-      // With an even number of nails per spiral the thread ends a round of
-      // sides one corner short; it crosses along the innermost side, which
-      // is strung anyway.
-      if (template.id === 'twisted-polygons') {
-        for (const strung of art.threads) {
-          expect(strung.joins.map((join) => Math.round(join.length))).toEqual([14]);
-        }
-        continue;
-      }
       for (const strung of art.threads) expect(strung.joins, template.id).toEqual([]);
     }
   });
@@ -661,25 +652,29 @@ describe('template parameters', () => {
       (Math.atan2(point.y, point.x) * 180) / Math.PI;
     expect(angle(at(0, 49))).toBeCloseTo(90 - 210, 6);
 
-    // every nail is joined to the nail with the same number on the next spiral
+    // From the innermost nail outwards, round the spirals: A50 B50 C50 A49 …
     const thread = art.threads[0] as (typeof art.threads)[number];
-    const lines = new Set<string>();
-    thread.route.forEach((nail, index) => {
-      const next = thread.route[index + 1];
-      if (next !== undefined) lines.add([nail, next].sort((a, b) => a - b).join('-'));
-    });
-    for (let copy = 0; copy < 3; copy++) {
-      for (let index = 0; index < 50; index++) {
-        const a = (spiral[copy] as number[])[index] as number;
-        const b = (spiral[(copy + 1) % 3] as number[])[index] as number;
-        expect(lines.has([a, b].sort((x, y) => x - y).join('-'))).toBe(true);
-      }
+    const expected: number[] = [];
+    for (let index = 49; index >= 0; index--) {
+      for (let copy = 0; copy < 3; copy++)
+        expected.push((spiral[copy] as number[])[index] as number);
     }
+    expect(thread.route).toEqual(expected);
+    expect(thread.joins).toEqual([]);
+    // the round goes counter-clockwise, the way the spirals open outwards
+    const turnOf = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+      a.x * b.y - a.y * b.x;
+    expect(turnOf(at(0, 10), at(1, 10))).toBeGreaterThan(0);
 
     const squares = computeStringArt(
       applyTemplate(params, { ...entry.defaults, corners: 4, clockwise: false }),
     );
     expect(squares.layout.nails).toHaveLength(200);
+    // turned the other way, the round goes the other way, too
+    const squareSpiral = squares.layout.rows.get('spiral')?.copies ?? [];
+    expect(squares.threads[0]?.route.slice(0, 4)).toEqual(
+      [0, 3, 2, 1].map((copy) => (squareSpiral[copy] as number[])[49]),
+    );
   });
 
   it('a template brings its nail settings only when it is chosen', () => {
@@ -722,6 +717,45 @@ describe('geometry and preview', () => {
     expect(preview.strokes[0]?.color).toBe('#00aacc');
     expect(preview.strokes[0]?.points).toHaveLength(10);
     expect(preview.strokes[0]?.points[1]).toEqual({ x: 0, y: 40 });
+  });
+});
+
+describe('rounds', () => {
+  it('visit the same nail in every repetition, then the next one', () => {
+    const params = design({
+      rows: [segment('a', 30, 0, 4)],
+      repeat: 3,
+      threads: [thread([part({ from: 'a', to: 'a', mode: 'rounds', toCopy: 1, start: 1 })])],
+    });
+    const art = computeStringArt(params);
+    expect(art.issues).toEqual([]);
+    const copies = art.layout.rows.get('a')?.copies ?? [];
+    const nail = (copy: number, index: number) => (copies[copy] as number[])[index];
+    // nail 0 is the shared centre and is left out by `start`
+    expect(art.threads[0]?.route).toEqual([
+      nail(0, 1),
+      nail(1, 1),
+      nail(2, 1),
+      nail(0, 2),
+      nail(1, 2),
+      nail(2, 2),
+      nail(0, 3),
+      nail(1, 3),
+      nail(2, 3),
+    ]);
+    expect(art.threads[0]?.joins).toEqual([]);
+  });
+
+  it('need one and the same row at both ends', () => {
+    const art = computeStringArt(
+      design({
+        rows: [segment('a', 30, 0, 4), segment('b', 0, 30, 4)],
+        threads: [thread([part({ mode: 'rounds' })])],
+      }),
+    );
+    expect(art.issues).toEqual([
+      'Thread "Thread", part 1: a round needs one and the same row at both ends.',
+    ]);
   });
 });
 
